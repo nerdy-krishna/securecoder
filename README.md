@@ -126,6 +126,21 @@ That's the minimum path. The other four skills add specific value — see [§ Th
 /securecoder-advise
 # At the mode prompt: "Specific finding deep-dive"
 # Then provide the finding ID prefix
+
+# Mark a finding as a false positive (v1.1.0)
+/securecoder-suppress 5823722d "Validated upstream by middleware"
+
+# Mark a pattern as a false positive
+/securecoder-suppress add --match "rule=B105 and file_glob=tests/**" --reason "Test fixtures"
+
+# Or annotate the source directly (v1.2.0)
+# Inside any source file:
+#     # securecoder: ignore reason="..."
+# Inline at end of code line:
+#     PASSWORD = "x"  # securecoder: ignore reason="dev only"
+
+# Check whether you're on the latest securecoder release (v1.2.0)
+/securecoder-update
 ```
 
 Detailed per-skill guides live at [`docs/guides/per-skill/`](docs/guides/per-skill/).

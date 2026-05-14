@@ -89,6 +89,15 @@ The `findings.jsonl` is the single source of truth. The reports are derivatives.
 
 Argument-form invocations are aspirational — current implementation always prompts via the mode picker. The agent can interpret natural-language form ("run securecoder-scan in SAST-only mode") and skip the prompt.
 
+## What v1.1.0+ adds to the scan flow
+
+Two phases the original SAST flow didn't have:
+
+- **Phase A.7.3 (v1.2.0) — scan for annotations.** Before applying suppressions, the scan walks the repo for `# securecoder: ignore` / `// securecoder: ignore` comments and emits ephemeral suppression entries. See the [`/securecoder-suppress` guide](securecoder-suppress.md) for annotation syntax.
+- **Phase A.7.5 (v1.1.0) — apply suppressions.** Reads `.securecoder/suppressions.json` plus the ephemeral annotation entries from A.7.3 and stamps `status: "suppressed"` + `suppression_reason` + `suppression_match` on matching findings. Most-specific-wins resolution per `docs/design.md` §3.9.
+
+You don't invoke these steps manually — they run automatically as part of every `/securecoder-scan` invocation. If `.securecoder/suppressions.json` is missing and there are no in-source annotations, both phases are no-ops.
+
 ## Reading the report
 
 Open `.securecoder/runs/<run-id>/report.html` in a browser.
@@ -102,6 +111,10 @@ Sections:
 - **Manifest footer** — exact tool versions and rule pack SHAs used
 
 The HTML report has interactive filters for severity / source / framework + a free-text search across file paths / titles / evidence. Use these to triage hundreds of findings quickly.
+
+**v1.2.0 additions in the HTML report:**
+- **Smart-collapse** kicks in when total findings > 500: file groups render collapsed by default to keep the browser responsive. A `[Expand all visible] [Collapse all]` toolbar appears automatically. Filter-aware — "Expand all visible" only opens groups matching your current filter.
+- **Sample-assisted cluster review** — every cluster row has a "Review samples" button alongside "Suppress entire cluster". Opens a modal with 5 random samples; vote keep/suppress per sample; if ≥80% suppress, the cluster suppress button activates. Helps validate large-cluster suppressions without trusting the pattern blindly.
 
 ## Follow-up
 

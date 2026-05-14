@@ -258,6 +258,46 @@ The skill detects offline cleanly: if the rule pack or framework cache is empty 
 
 ---
 
+## Scenario 12 — Marking a specific line as a known false positive (v1.2.0)
+
+**Goal:** A specific line in production code is flagged by SAST, but the team has validated that path is safe upstream. Suppress it directly in the source so the suppression travels with the code.
+
+**Sequence:** Edit the file, add the annotation, re-scan.
+
+```python
+def fetch_remote(url):
+    # securecoder: ignore reason="URL is validated by middleware before reaching this fn"
+    return requests.get(url, timeout=5)
+```
+
+For inline (end-of-line) form on short lines:
+
+```python
+PASSWORD = "dev-only"  # securecoder: ignore reason="dev env only" expires="2027-01-01"
+```
+
+**What happens:**
+
+- On the next `/securecoder-scan`, the new Phase A.7.3 step walks source files for these markers.
+- Each annotation becomes an ephemeral suppression entry with `match: {file: ..., lines: {...}}`, `source: "annotation"`, `created_by: "<annotation>"`.
+- The ephemeral entries merge with `.securecoder/suppressions.json` at match time. Most-specific-wins still applies — line-anchored annotations beat rule-only config entries.
+- Findings whose `lines.start` falls in the annotation's range get `status: "suppressed"` with the annotation's reason.
+
+**When annotations vs `/securecoder-suppress`?**
+
+Use annotations when:
+- The suppression is anchored to specific code
+- The reasoning is most natural to read next to the code
+- You want git blame to attribute who added the suppression
+- The code is short-lived and doesn't need separate team review
+
+Use `/securecoder-suppress` when:
+- The suppression covers a pattern (rule + path glob) across many findings
+- The decision should be team-reviewed via PR on the config file
+- You want explicit `created_by` from git config
+
+---
+
 ## Scenario 11 — Triaging a 2,000-finding scan (false positives)
 
 **Goal:** A SAST scan returned 2,000 medium findings. Most are false positives. Triage efficiently rather than fixing them one-by-one.

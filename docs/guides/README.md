@@ -23,6 +23,8 @@ User-facing walkthroughs and per-skill deep dives.
 | `/securecoder-review` | [`per-skill/securecoder-review.md`](per-skill/securecoder-review.md) |
 | `/securecoder-build` | [`per-skill/securecoder-build.md`](per-skill/securecoder-build.md) |
 | `/securecoder-advise` | [`per-skill/securecoder-advise.md`](per-skill/securecoder-advise.md) |
+| `/securecoder-suppress` | [`per-skill/securecoder-suppress.md`](per-skill/securecoder-suppress.md) |
+| `/securecoder-update` | [`per-skill/securecoder-update.md`](per-skill/securecoder-update.md) |
 
 Each per-skill guide covers:
 

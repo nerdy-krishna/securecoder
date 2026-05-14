@@ -108,6 +108,39 @@ Use `show` first to find the index.
 /securecoder-suppress expire --yes
 ```
 
+## Alternative input — source-code annotations (v1.2.0)
+
+Beyond the eight CLI modes above, suppressions can also come from in-source comment annotations. These get picked up automatically by `/securecoder-scan` during Phase A.7.3:
+
+```python
+def get_user(user_id):
+    # securecoder: ignore reason="validated upstream by middleware"
+    return db.execute(f"SELECT * FROM users WHERE id = {user_id}")
+
+PASSWORD = "dev-only"  # securecoder: ignore reason="dev env only" expires="2027-01-01"
+```
+
+Both `#` (Python, Ruby, Shell, YAML, TOML, etc.) and `//` (JavaScript, TypeScript, Go, Java, C/C++, etc.) line comments are recognized. Block comments (`/* ... */`) and JSX braces are not yet supported.
+
+**Targeting:**
+- **Inline annotation** (code + marker on the same line) → applies to that line.
+- **Line-only annotation** (the whole line is just the comment) → applies to the next non-blank, non-comment line.
+
+**Attributes (optional):**
+- `reason="..."` — free-text; appears in the suppression's audit trail. Falls back to `"(in-source annotation)"` if omitted.
+- `expires="YYYY-MM-DD"` — entry is auto-disabled past this date (preserved in audit but ignored at match time).
+
+**When annotations vs config-file suppressions?**
+
+| Use annotations when... | Use config (`/securecoder-suppress`) when... |
+| --- | --- |
+| The suppression is anchored to a specific line of code | The suppression covers a pattern (rule + path glob) |
+| The reasoning is most natural to read next to the code itself | The reasoning is administrative ("we use SQLAlchemy throughout, this rule fires across the codebase") |
+| You want git blame to attribute who added it | You want explicit `created_by` from `git config user.email` |
+| The code is short-lived and the suppression doesn't need cross-team coordination | The suppression should be team-reviewed via PR on the config file |
+
+Annotations live in the source code, so they move with refactoring, survive branch merges naturally, and are version-controlled alongside the code they protect. Config-file entries are easier to audit in bulk and easier to bulk-remove.
+
 ## What it writes
 
 `.securecoder/suppressions.json` — team-shared, checked in:
