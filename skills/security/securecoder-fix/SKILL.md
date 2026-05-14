@@ -7,7 +7,7 @@ description: Remediate findings from a previous /securecoder-scan run. Pre-fligh
 
 You are running the `/securecoder-fix` skill. Your job is to safely remediate findings from a previous `/securecoder-scan` run, with every fix verified and any failed fix automatically rolled back.
 
-> **Slice 05 + 06 scope (this release).** Handles SAST findings (those produced by Semgrep, Bandit, Gitleaks, OSV-scanner). Compliance findings (`category: "compliance"`) are skipped with status `manual_review_required` in v0.5.0 — full handling lands in v0.7.0 (slice 08).
+> **v0.7.0 scope.** Handles both SAST findings (Semgrep, Bandit, Gitleaks, OSV-scanner) and compliance findings (ASVS v5 — produced by `/securecoder-scan` Phase B). Compliance findings with `fix_complexity: "high"` or `lines: null` are flagged `manual_review_required` rather than auto-fixed.
 
 ## Two modes
 
@@ -59,11 +59,11 @@ Present a single-select picker with these options (pre-select `config.default_fi
 
 Record the chosen scope. Filter the findings list:
 
-- Keep `category: "sast"` findings whose `severity` is in the scope.
-- For each `category: "compliance"` finding: skip silently in v0.5.0 with `status: "manual_review_required"` in the report. (Slice 08 implements full compliance fix handling.)
-- For findings with `fix_complexity: "high"` or `lines: null`, skip with status `manual_review_required`.
+- Keep `category: "sast"` and `category: "compliance"` findings whose `severity` is in the scope.
+- For findings with `fix_complexity: "high"` or `lines: null`, append to a separate `MANUAL_REVIEW` list (they're recorded in the fix log with status `manual_review_required` but never auto-fixed).
+- Everything else lands in `TO_FIX`.
 
-Capture the remaining filtered list as `TO_FIX`.
+Capture both lists.
 
 If `TO_FIX` is empty, print "No findings match the selected scope. Exiting." and exit cleanly.
 
@@ -218,9 +218,13 @@ python3 "<skill-dir>/scripts/syntax_check.py" "$PROJECT_ROOT/$file" --json
 
 Exit 0 = clean; non-zero = syntax error introduced. On error, restore from backup and trigger a retry with the syntax-error message in the retry context.
 
-### F.5 Re-scan the file with the originating SAST tool
+### F.5 Re-scan to verify the fix
 
-Best-effort verification that the finding is gone and no NEW finding of equal-or-higher severity was introduced.
+Best-effort verification that the finding is gone and no NEW finding of equal-or-higher severity was introduced. The mechanism depends on `category`:
+
+#### F.5.sast — for SAST findings
+
+Re-run the originating tool on just the fixed file:
 
 ```bash
 case "$source" in
@@ -243,12 +247,23 @@ case "$source" in
 esac
 ```
 
-(`$SEMGREP_BIN`, `$BANDIT_BIN`, etc. are the cached binaries from `~/.cache/securecoder/tools/`; resolve their paths the same way `/securecoder-scan` does.)
-
-Normalize the result via the same `normalize_<tool>.py` from `/securecoder-scan/scripts/`. Compare to the original finding:
+Normalize via the same `normalize_<tool>.py` from `/securecoder-scan/scripts/`. Compare to the original finding:
 
 - **The finding's canonical ID should NOT be in the re-scan results.** If it is, the fix didn't actually resolve the issue. Restore from backup and retry.
 - **No NEW findings of equal-or-higher severity at the same file should appear.** If one does, the fix introduced a different vulnerability. Restore from backup and retry.
+
+#### F.5.compliance — for compliance findings
+
+Re-run the architect prompt for the originating chapter on the fixed file. The chapter ID is in the finding's `tags` (e.g., `"V1"`). The framework markdown is already cached at `~/.cache/securecoder/rules/frameworks/asvs/<sha>/5.0/en/<chapter_filename>` from the original scan.
+
+Compose the same architect prompt the scan used, but on the now-patched file. Save the response to `$RUN_DIR/_recheck_compliance/<NNNN>_<chapter_id>_<file-slug>.md`. Validate coverage matrix (one retry on incomplete). Normalize via `normalize_compliance.py`.
+
+Compare to the original finding:
+
+- **The original finding's `source_rule_id` (control ID) should NOT be present in the re-scan's findings.** If it is, the fix didn't resolve the failing control. Restore from backup and retry.
+- **No NEW compliance findings of equal-or-higher severity at the same file × chapter should appear.** If one does, the fix introduced a different compliance failure. Restore from backup and retry.
+
+If the re-scan LLM call itself fails (3 tries), mark the finding `applied_unverified` — the patch is applied, the file is left in its post-fix state, but verification couldn't complete. The post-flight summary will flag these separately so the user can spot-check.
 
 If verification passes, proceed to F.6.
 
@@ -256,11 +271,23 @@ If verification passes, proceed to F.6.
 
 Skip this step for non-git repos.
 
+Commit message format differs by category:
+
+- **SAST**: `fix(securecoder): <severity>/<title> [<id-short>]`
+- **Compliance**: `fix(securecoder): <severity>/<title> [compliance <framework>/<control> <id-short>]`
+
 ```bash
 SHORT_ID="${finding_id:0:8}"
-COMMIT_MSG="fix(securecoder): $severity/$title [$SHORT_ID]
+if [ "$category" = "compliance" ]; then
+  SUBJECT="fix(securecoder): $severity/$title [compliance $source/$source_rule_id $SHORT_ID]"
+else
+  SUBJECT="fix(securecoder): $severity/$title [$SHORT_ID]"
+fi
+
+COMMIT_MSG="$SUBJECT
 
 Source: $source
+Category: $category
 Rule: $source_rule_id
 CWE: $cwe_csv
 Original lines: $file:L$start-L$end

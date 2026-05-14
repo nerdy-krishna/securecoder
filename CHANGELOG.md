@@ -4,6 +4,20 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-14
+
+`/securecoder-fix` extends to handle compliance findings produced by the v0.6.0 ASVS pass. The full safety loop applies: backup, syntax check, re-scan with the originating mechanism, automatic rollback on failure. Compliance fixes that the model can't fully resolve in 3 tries land as `editor_failed`; those whose re-verification LLM call fails land as `applied_unverified`.
+
+### Added
+- **Compliance-finding handling in `/securecoder-fix`.** Findings with `category: "compliance"` now flow through the per-fix loop alongside SAST findings.
+- **Compliance re-verification path.** After a compliance fix is applied, the architect prompt for the originating ASVS chapter is re-run against the patched file. The original failing control must no longer fail, and no new same-or-higher compliance failures may appear at that file × chapter, or the fix is rolled back.
+- **`applied_unverified` status.** When the re-scan LLM call fails (3 tries), the patch stays applied but is flagged in the summary so the user can spot-check. Distinguished from `applied` (verified) and `editor_failed` (rolled back).
+- **Specialized commit message for compliance fixes.** `fix(securecoder): <severity>/<title> [compliance <framework>/<control> <id-short>]` makes compliance fixes visually distinct from SAST fixes in git log.
+
+### Compatibility
+- Findings with `fix_complexity: "high"` or `lines: null` remain flagged `manual_review_required` regardless of category — these are architectural or location-ambiguous fixes the agent shouldn't auto-apply.
+- No new pinned upstreams.
+
 ## [0.6.0] — 2026-05-14
 
 `/securecoder-scan` gains the LLM-driven ASVS v5 compliance pass. Mode picker now offers SAST only / LLM compliance only / Both. Compliance findings merge into the same `findings.jsonl` as SAST findings; per-framework posture score appears in both markdown and HTML reports.
@@ -145,7 +159,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.7.0
 [0.6.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.6.0
 [0.5.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.5.0
 [0.4.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.4.0
