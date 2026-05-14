@@ -4,6 +4,37 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-14
+
+`/securecoder-scan` becomes multi-tool. Bandit, Gitleaks, and OSV-scanner join Semgrep in the SAST pipeline. Findings from all four tools merge into one `findings.jsonl`. Per-tool soft-failure policy means one crashing tool doesn't break the whole scan.
+
+### Added
+- **Bandit normalizer** (`scripts/normalize_bandit.py`). Maps Bandit HIGH/MEDIUM/LOW severity × HIGH/MEDIUM/LOW confidence to the securecoder 5-level scale; escalates hardcoded-secret / SQL-injection rule IDs to at-least-high. Extracts CWE from `issue_cwe.id`.
+- **Gitleaks normalizer** (`scripts/normalize_gitleaks.py`). Every detection is `critical` severity, CWE-798, with the secret value redacted in the emitted evidence so reports don't leak credentials.
+- **OSV-scanner normalizer** (`scripts/normalize_osv.py`). One finding per (package, vulnerability). Severity derived from CVSS score with safe fallback to `high` when the score isn't recoverable. Adds OWASP A06 to every finding's `framework_refs`. CVE aliases from advisories become tags.
+- **Shared helpers** (`scripts/_common.py`). Canonical-ID computation, CWE / OWASP token extraction, framework-ref enrichment with dedup, path normalization, output emission. Imported by every normalizer.
+- **OSV auto-skip** when no dependency manifest is present in the repo. Looks for npm, pip, poetry, pipenv, go, cargo, gem, composer, dart, mix lockfiles up to 3 levels deep.
+- **Per-tool status reporting in `manifest.json`**. `phases.sast.per_tool.<tool>.{status, duration_s, findings}` lets reports and downstream skills know which tools ran, which were skipped, and which failed.
+- **Bandit, Gitleaks, OSV-scanner installers** in the SKILL.md flow. Bandit via venv (same pattern as Semgrep). Gitleaks and OSV-scanner via GitHub release-binary download with per-OS / per-arch asset selection.
+
+### Refactored
+- `normalize_semgrep.py` now imports from `_common.py`; output is byte-equivalent to v0.2.0's. The Semgrep-specific severity heuristic (escalate injection / secret rules to critical) stays in `normalize_semgrep.py`.
+- `SKILL.md` for `/securecoder-scan` restructured around four tools instead of one. Phase A now: A.0 enabled-tools resolution → A.1 OS/arch detection → A.2 install (a-d, one per tool) → A.3 Semgrep rule fetch → A.4 walk → A.5 run (a-d) → A.6 normalize → A.7 merge → A.8 manifest → A.9 report → A.10 latest pointer → A.11 gitignore → A.12 summary.
+
+### Pinned upstream versions
+- Semgrep: `1.91.0` (unchanged from v0.2.0)
+- Bandit: `1.7.10`
+- Gitleaks: `8.18.4`
+- OSV-scanner: `1.9.2`
+
+### Compatibility
+- Host agents: any reading SKILL.md markdown.
+- OS: macOS (arm64, amd64) and Linux (amd64, arm64) validated for the binary-tool install logic via asset-name mapping tables. Windows asset names included but the install path is not yet validated end-to-end.
+- Python: 3.9+. All normalizers use `from __future__ import annotations` so PEP 604 syntax is parse-only.
+
+### Tests
+- Deferred. Manual smoke-testing covered each normalizer with synthetic tool output (Bandit B608+B105, Gitleaks aws+generic-api-key, OSV GHSA), plus the merged-findings-plus-render end-to-end path with all four sources represented. Unit tests follow in a subsequent commit.
+
 ## [0.2.0] — 2026-05-14
 
 `/securecoder-scan` becomes functional for the Semgrep SAST path. Establishes every cross-cutting mechanism the rest of the skill bundle relies on: tool installation with one-time consent, content-addressed rule cache, repo walker with language detection, SAST findings normalization, CWE-to-framework enrichment, run directory management, and markdown report rendering.
@@ -49,6 +80,7 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.2.0
 [0.1.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.1.0

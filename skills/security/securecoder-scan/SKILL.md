@@ -1,13 +1,13 @@
 ---
 name: securecoder-scan
-description: Audit a codebase for vulnerabilities and OWASP compliance issues. Currently runs Semgrep SAST and emits findings in the unified securecoder schema, with markdown report and run-history under .securecoder/runs/<id>/. Other SAST tools (Bandit, Gitleaks, OSV-scanner) and the LLM-driven compliance pass land in subsequent releases.
+description: Audit a codebase for vulnerabilities and OWASP compliance issues. Runs four SAST tools — Semgrep, Bandit, Gitleaks, OSV-scanner — and emits findings in the unified securecoder schema, with markdown report and run-history under .securecoder/runs/<id>/. The LLM-driven compliance pass against OWASP frameworks lands in a subsequent release.
 ---
 
 # `/securecoder-scan`
 
 You are running the `/securecoder-scan` skill. Your job is to audit the user's codebase for security findings and write the results to `.securecoder/runs/<run-id>/`.
 
-> **Slice 02 scope (this release).** Only the SAST-Semgrep path is implemented. If the user asks for "LLM compliance only" or "Both," gracefully decline with the message in [§ Phase B](#phase-b--llm-compliance-pass-not-yet-implemented) below. Multi-tool SAST (Bandit, Gitleaks, OSV-scanner) ships in slice 03; compliance in slice 07.
+> **Slice 03 scope.** All four SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) are implemented. The LLM compliance pass is still stubbed and gracefully refuses if the user picks it; it lands in slice 07.
 
 ## Pre-flight
 
@@ -16,11 +16,11 @@ You are running the `/securecoder-scan` skill. Your job is to audit the user's c
 1. If a `.git/` directory exists in the current working directory or any ancestor, use the git toplevel (`git rev-parse --show-toplevel`).
 2. Otherwise, use the current working directory.
 
-Every relative path below is rooted at this project root. Capture it as `PROJECT_ROOT`.
+Every relative path below is rooted here. Capture it as `PROJECT_ROOT`.
 
 ### 2. Load configuration
 
-Read `<PROJECT_ROOT>/.securecoder/config.json` if it exists and is parseable. Otherwise use these documented defaults:
+Read `<PROJECT_ROOT>/.securecoder/config.json` if it exists and is parseable. Otherwise use these defaults:
 
 ```json
 {
@@ -36,15 +36,15 @@ Read `<PROJECT_ROOT>/.securecoder/config.json` if it exists and is parseable. Ot
 }
 ```
 
-If the file is missing, mention to the user once: "Running with default configuration. Run `/securecoder-setup` to customize."
+If the file is missing, mention once: "Running with default configuration. Run `/securecoder-setup` to customize."
 
-### 3. Ask the user which mode to run
+### 3. Ask which mode to run
 
-Present three options with the explanations + token warnings below. Use whatever interactive prompt mechanism your host agent supports.
+Show three options with token warnings. Use whatever interactive prompt mechanism the host agent supports.
 
-- **SAST only** *(implemented)* — Run Semgrep against the codebase. Detects code-level vulnerabilities (injection, weak crypto, SSRF, etc.). Free in LLM tokens. Typical wall time: 30 seconds for a small repo, a few minutes for a large one.
-- **LLM compliance only** *(not yet implemented in this release)* — Will run an LLM-driven review against the configured frameworks. Slice 07 lands this; for now, falls through to a friendly "not yet" message.
-- **Both** *(not yet implemented in this release)* — Combines the two. Same caveat as above.
+- **SAST only** *(implemented)* — Runs Semgrep, Bandit, Gitleaks, and OSV-scanner. Free in LLM tokens. Typical wall time: under a minute for a small repo, a few minutes for a large one.
+- **LLM compliance only** *(not yet implemented in this release)* — Tracked for slice 07.
+- **Both** *(not yet implemented in this release)* — Tracked for slice 07.
 
 If the user picks an unimplemented mode, jump to [§ Phase B](#phase-b--llm-compliance-pass-not-yet-implemented).
 
@@ -52,17 +52,14 @@ If the user picks an unimplemented mode, jump to [§ Phase B](#phase-b--llm-comp
 
 ```bash
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 RUN_DIR="$PROJECT_ROOT/.securecoder/runs/$RUN_ID"
 mkdir -p "$RUN_DIR"
-```
 
-Initialize a run log inside the run dir; you'll append per-phase rows to it as the scan progresses.
-
-```bash
 cat > "$RUN_DIR/log.md" <<EOF
 # securecoder-scan run — $RUN_ID
 
-- Started: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+- Started: $STARTED_AT
 - Mode: SAST only
 - Project root: $PROJECT_ROOT
 
@@ -73,92 +70,202 @@ EOF
 
 ### 5. Pre-flight cost estimate
 
-For SAST-only mode the LLM cost is `$0` and wall time is bounded by tool execution. Still print the estimate and ask the user to confirm before doing any installation or fetching, so the gate flow is consistent with future modes.
-
-Print:
+For SAST-only mode the LLM cost is `$0` and wall time is bounded by tool execution. Print the estimate and get approval anyway so the gate flow is consistent with future modes.
 
 ```
 Scan estimate for SAST-only mode:
   Files in scope:    (computed after repo walk)
+  Tools to run:      Semgrep, Bandit, Gitleaks, OSV-scanner (per config.tools)
   LLM cost:          $0
-  Wall time:         ~30s for a small repo, a few minutes for larger
-  Will install:      Semgrep into ~/.cache/securecoder/tools/semgrep/ (if not cached)
+  Will install:      Any of the four tools not already cached in ~/.cache/securecoder/tools/
   Will fetch:        returntocorp/semgrep-rules at the pinned tag (if not cached)
 
 Continue? [proceed / abort]
 ```
 
-Wait for `proceed`. On `abort`, append a `cancelled-at-estimate` row to the log and exit cleanly.
+Wait for `proceed`. On `abort`, append `cancelled-at-estimate` to the log and exit cleanly.
 
-## Phase A — Semgrep SAST
+## Phase A — SAST (multi-tool)
 
-### A.1 Ensure Semgrep is installed
+### A.0 Determine which tools to run
 
-Pinned version for this release: **`semgrep==1.91.0`**.
+Read `config.tools` from `.securecoder/config.json`. For each of the four tools (`semgrep`, `bandit`, `gitleaks`, `osv-scanner`), resolve:
+
+- `enabled`: `config.tools.<tool>.enabled` if present, else `true`.
+- `path`: optional `config.tools.<tool>.path` for using a system-installed binary instead of the cached one.
+
+**Auto-skip OSV-scanner if no dependency manifest exists.** Before deciding to run OSV-scanner, check whether any of these manifests live in the project (search up to 3 levels deep):
+
+```
+package.json, package-lock.json, yarn.lock, pnpm-lock.yaml,
+requirements.txt, pyproject.toml, poetry.lock, Pipfile.lock,
+go.sum, go.mod,
+Cargo.lock,
+Gemfile.lock,
+composer.lock,
+pubspec.lock,
+mix.lock
+```
+
+If none are present, set OSV-scanner's status to `skipped_no_lockfile` and don't attempt to install or run it. Note this in the run log.
+
+### A.1 Detect OS + architecture
+
+```bash
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"   # darwin | linux
+ARCH_RAW="$(uname -m)"
+case "$ARCH_RAW" in
+  x86_64|amd64) ARCH=amd64 ;;
+  arm64|aarch64) ARCH=arm64 ;;
+  *) ARCH="$ARCH_RAW" ;;
+esac
+```
+
+Used by binary downloads in A.2.c and A.2.d. For Windows hosts, detect via `$env:OS == 'Windows_NT'` or equivalent and substitute `OS=windows`.
+
+### A.2 Ensure each enabled tool is installed
+
+The user gave a one-time consent the first time any tool was installed (recorded at `~/.cache/securecoder/manifest.json`). Per-version installs after that are silent. If the consent record doesn't exist yet, ask once:
+
+> securecoder needs to install up to four tools (~200MB total): Semgrep, Bandit, Gitleaks, OSV-scanner. They'll be cached under `~/.cache/securecoder/tools/` and never touch your system Python or PATH. Proceed?
+
+Record consent on approval:
+
+```bash
+mkdir -p "$HOME/.cache/securecoder"
+cat > "$HOME/.cache/securecoder/manifest.json" <<EOF
+{
+  "consent": { "tools": true, "granted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)" }
+}
+EOF
+```
+
+Per-tool installation follows. For each, check `~/.cache/securecoder/tools/<tool>/installed.json` against the pinned version below; install or upgrade only on mismatch.
+
+#### A.2.a Semgrep — pinned `1.91.0`
 
 ```bash
 SEMGREP_VERSION="1.91.0"
-TOOLS_DIR="$HOME/.cache/securecoder/tools"
-SEMGREP_DIR="$TOOLS_DIR/semgrep"
-SEMGREP_INSTALLED_JSON="$SEMGREP_DIR/installed.json"
-SEMGREP="$SEMGREP_DIR/venv/bin/semgrep"
+TOOL_DIR="$HOME/.cache/securecoder/tools/semgrep"
+INSTALLED="$TOOL_DIR/installed.json"
+SEMGREP_BIN="$TOOL_DIR/venv/bin/semgrep"
 
-# Cache hit?
-if [ -f "$SEMGREP_INSTALLED_JSON" ] && [ -x "$SEMGREP" ]; then
-  CACHED_VERSION="$(python3 -c "import json,sys; print(json.load(open('$SEMGREP_INSTALLED_JSON')).get('version',''))")"
-  if [ "$CACHED_VERSION" = "$SEMGREP_VERSION" ]; then
-    : # Cache is current; nothing to do.
-  fi
+if [ ! -x "$SEMGREP_BIN" ] || ! grep -q "\"version\": \"$SEMGREP_VERSION\"" "$INSTALLED" 2>/dev/null; then
+  mkdir -p "$TOOL_DIR"
+  python3 -m venv "$TOOL_DIR/venv"
+  "$TOOL_DIR/venv/bin/pip" install --quiet --upgrade pip
+  "$TOOL_DIR/venv/bin/pip" install --quiet "semgrep==$SEMGREP_VERSION"
+  cat > "$INSTALLED" <<EOF
+{"version": "$SEMGREP_VERSION", "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "binary": "$SEMGREP_BIN"}
+EOF
 fi
 ```
 
-If the cache check above doesn't match the pinned version, install:
+#### A.2.b Bandit — pinned `1.7.10`
 
 ```bash
-mkdir -p "$SEMGREP_DIR"
+BANDIT_VERSION="1.7.10"
+TOOL_DIR="$HOME/.cache/securecoder/tools/bandit"
+INSTALLED="$TOOL_DIR/installed.json"
+BANDIT_BIN="$TOOL_DIR/venv/bin/bandit"
 
-# Consent gate — first time only
-SECURECODER_MANIFEST="$HOME/.cache/securecoder/manifest.json"
-if [ ! -f "$SECURECODER_MANIFEST" ]; then
-  # Ask the user once: "securecoder needs to install Semgrep (~50MB) into
-  # ~/.cache/securecoder/tools/. It won't touch your system Python or PATH.
-  # Proceed?"
-  # On approval, record consent:
-  mkdir -p "$HOME/.cache/securecoder"
-  cat > "$SECURECODER_MANIFEST" <<EOF
-{
-  "consent": {
-    "tools": true,
-    "granted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  }
-}
+if [ ! -x "$BANDIT_BIN" ] || ! grep -q "\"version\": \"$BANDIT_VERSION\"" "$INSTALLED" 2>/dev/null; then
+  mkdir -p "$TOOL_DIR"
+  python3 -m venv "$TOOL_DIR/venv"
+  "$TOOL_DIR/venv/bin/pip" install --quiet --upgrade pip
+  "$TOOL_DIR/venv/bin/pip" install --quiet "bandit==$BANDIT_VERSION"
+  cat > "$INSTALLED" <<EOF
+{"version": "$BANDIT_VERSION", "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "binary": "$BANDIT_BIN"}
 EOF
 fi
-
-# Install Semgrep into a private venv (no pipx required)
-python3 -m venv "$SEMGREP_DIR/venv"
-"$SEMGREP_DIR/venv/bin/pip" install --quiet --upgrade pip
-"$SEMGREP_DIR/venv/bin/pip" install --quiet "semgrep==$SEMGREP_VERSION"
-
-# Record installation
-cat > "$SEMGREP_INSTALLED_JSON" <<EOF
-{
-  "version": "$SEMGREP_VERSION",
-  "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "binary": "$SEMGREP"
-}
-EOF
 ```
 
-If `python3 -m venv` fails because the venv module isn't installed (some minimal Linux distros), fall back to advising the user: "Securecoder needs `python3 -m venv` to install Semgrep. On Debian/Ubuntu: `sudo apt install python3-venv`. On RHEL: `sudo dnf install python3-venv`. Then re-run `/securecoder-scan`."
+#### A.2.c Gitleaks — pinned `8.18.4`
 
-If there is no network and the cache is empty, fail with:
+Asset naming for the 8.x line:
 
-> Source `semgrep==1.91.0` needs network access to install. Either connect to the internet and re-run, or pre-populate `~/.cache/securecoder/tools/semgrep/` from another machine.
+| OS | ARCH | Asset name |
+| --- | --- | --- |
+| darwin | arm64 | `gitleaks_8.18.4_darwin_arm64.tar.gz` |
+| darwin | amd64 | `gitleaks_8.18.4_darwin_x64.tar.gz` |
+| linux | amd64 | `gitleaks_8.18.4_linux_x64.tar.gz` |
+| linux | arm64 | `gitleaks_8.18.4_linux_arm64.tar.gz` |
+| windows | amd64 | `gitleaks_8.18.4_windows_x64.zip` |
 
-### A.2 Fetch the Semgrep rule packs
+Note Gitleaks uses `x64` (not `amd64`) for x86_64 in its asset names. Map accordingly.
 
-Pinned upstream: **`returntocorp/semgrep-rules` at branch `main`**, content-addressed by the resulting commit SHA.
+```bash
+GITLEAKS_VERSION="8.18.4"
+TOOL_DIR="$HOME/.cache/securecoder/tools/gitleaks"
+INSTALLED="$TOOL_DIR/installed.json"
+GITLEAKS_BIN="$TOOL_DIR/gitleaks"
+
+if [ ! -x "$GITLEAKS_BIN" ] || ! grep -q "\"version\": \"$GITLEAKS_VERSION\"" "$INSTALLED" 2>/dev/null; then
+  mkdir -p "$TOOL_DIR"
+  case "$ARCH" in
+    amd64) GLA="x64" ;;
+    *) GLA="$ARCH" ;;
+  esac
+  case "$OS" in
+    darwin|linux) EXT="tar.gz" ;;
+    windows) EXT="zip" ;;
+  esac
+  ASSET="gitleaks_${GITLEAKS_VERSION}_${OS}_${GLA}.${EXT}"
+  URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${ASSET}"
+  curl -fsSL "$URL" -o "$TOOL_DIR/_pkg.${EXT}"
+  case "$EXT" in
+    tar.gz) tar -xzf "$TOOL_DIR/_pkg.tar.gz" -C "$TOOL_DIR" gitleaks ;;
+    zip) (cd "$TOOL_DIR" && unzip -o _pkg.zip gitleaks.exe && mv gitleaks.exe gitleaks) ;;
+  esac
+  rm -f "$TOOL_DIR/_pkg.${EXT}"
+  chmod +x "$GITLEAKS_BIN" 2>/dev/null || true
+  cat > "$INSTALLED" <<EOF
+{"version": "$GITLEAKS_VERSION", "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "binary": "$GITLEAKS_BIN"}
+EOF
+fi
+```
+
+#### A.2.d OSV-scanner — pinned `1.9.2`
+
+Asset naming for the 1.9.x line (direct binary, no archive):
+
+| OS | ARCH | Asset name |
+| --- | --- | --- |
+| darwin | arm64 | `osv-scanner_1.9.2_darwin_arm64` |
+| darwin | amd64 | `osv-scanner_1.9.2_darwin_amd64` |
+| linux | amd64 | `osv-scanner_1.9.2_linux_amd64` |
+| linux | arm64 | `osv-scanner_1.9.2_linux_arm64` |
+| windows | amd64 | `osv-scanner_1.9.2_windows_amd64.exe` |
+
+```bash
+OSV_VERSION="1.9.2"
+TOOL_DIR="$HOME/.cache/securecoder/tools/osv-scanner"
+INSTALLED="$TOOL_DIR/installed.json"
+OSV_BIN="$TOOL_DIR/osv-scanner"
+
+if [ ! -x "$OSV_BIN" ] || ! grep -q "\"version\": \"$OSV_VERSION\"" "$INSTALLED" 2>/dev/null; then
+  mkdir -p "$TOOL_DIR"
+  EXT=""
+  [ "$OS" = "windows" ] && EXT=".exe"
+  ASSET="osv-scanner_${OSV_VERSION}_${OS}_${ARCH}${EXT}"
+  URL="https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/${ASSET}"
+  curl -fsSL "$URL" -o "$OSV_BIN"
+  chmod +x "$OSV_BIN" 2>/dev/null || true
+  cat > "$INSTALLED" <<EOF
+{"version": "$OSV_VERSION", "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "binary": "$OSV_BIN"}
+EOF
+fi
+```
+
+#### Offline mode
+
+If `python3 -m venv` fails because the venv module isn't installed (some minimal Linux distros), or any of the binary downloads fail because there's no network AND the cache is empty for that tool, fail with:
+
+> Source `<tool>@<version>` needs network access to install. Either connect to the internet and re-run, or pre-populate `~/.cache/securecoder/tools/<tool>/` from another machine. To skip this tool, set `config.tools.<tool>.enabled = false` in `.securecoder/config.json`.
+
+### A.3 Fetch Semgrep rule packs (Semgrep only)
+
+Same as v0.2.0. Pinned upstream: **`returntocorp/semgrep-rules` at branch `main`**, content-addressed by the resulting commit SHA. The other three tools ship rules bundled and need no rule fetch.
 
 ```bash
 RULES_REPO="https://github.com/returntocorp/semgrep-rules.git"
@@ -167,12 +274,6 @@ RULES_CACHE_ROOT="$HOME/.cache/securecoder/rules/semgrep"
 TMP_CLONE="$RULES_CACHE_ROOT/_tmp_clone"
 
 mkdir -p "$RULES_CACHE_ROOT"
-
-# Probe upstream and decide if any cached version is reusable.
-# Simplest correct policy: if any sub-dir is present under
-# $RULES_CACHE_ROOT and contains a manifest.json with `branch == main`
-# and `last_verified_at` within the last 7 days, reuse it. Otherwise
-# clone fresh.
 REUSE_DIR=""
 for d in "$RULES_CACHE_ROOT"/*/; do
   [ -d "$d" ] || continue
@@ -210,13 +311,9 @@ else
 fi
 ```
 
-**Integrity invariant.** Before invoking Semgrep, verify the cached dir's stored SHA still matches the directory name. If they disagree, refuse to run with the message: "Cached rule pack integrity check failed for `$SHA`. Refusing to use. Remove `$RULES_DIR` and re-run to fetch fresh."
+Integrity: verify the cached dir name matches its `sha`. Mismatch refuses to run.
 
-**Offline behavior.** If `git clone` fails because of no network AND no usable cached dir exists, fail with:
-
-> Source `returntocorp/semgrep-rules @ main` needs network access. Either connect and re-run, or pre-populate `~/.cache/securecoder/rules/semgrep/` from another machine.
-
-### A.3 Walk the repo and pick rule subdirectories
+### A.4 Walk the repo
 
 Run the bundled walker:
 
@@ -225,9 +322,13 @@ python3 "<this-skill-dir>/scripts/repo_walker.py" "$PROJECT_ROOT" \
   --output "$RUN_DIR/repo_map.json"
 ```
 
-Read the resulting `languages` map. For each language with at least one file, select the Semgrep rule subdir if it exists under `$RULES_DIR`. The mapping is:
+Read the resulting `languages` map. Use it to:
 
-| Detected language | Semgrep rules subdir (under `$RULES_DIR/`) |
+- **Pick Semgrep rule subdirs** per the table below. Always also include `$RULES_DIR/generic/` and `$RULES_DIR/owasp/` (when present).
+- **Decide whether Bandit runs** — only if `python` ≥ 1 file.
+- **Decide whether Gitleaks runs** — always (file-type agnostic).
+
+| Detected language | Semgrep rules subdir |
 | --- | --- |
 | python | `python/` |
 | javascript | `javascript/` |
@@ -244,127 +345,173 @@ Read the resulting `languages` map. For each language with at least one file, se
 | bash | `bash/` |
 | terraform | `terraform/` |
 | dockerfile | `dockerfile/` |
-| html, yaml, json, sql, css, markdown, toml | (skip — no Semgrep subdir) |
+| html, yaml, json, sql, css, markdown, toml | (skip) |
 
-Always also include `$RULES_DIR/generic/` (if present) and `$RULES_DIR/owasp/` (if present) as cross-language packs.
+### A.5 Run each enabled tool
 
-Build a Semgrep `--config` argument string by concatenating the absolute paths of every selected subdir with one `--config` flag each.
+Run sequentially. For each tool, time it, capture stderr to a per-tool log, write raw JSON to `_<tool>_raw.json` in the run dir.
 
-If no language matches any rule subdir, append a row to the log with status `no-rules-applicable` and skip to phase A.6 (the report renderer will still emit a clean summary).
+**Per-tool soft failure policy.** If a tool fails to run (crashes, exits with no parseable JSON, times out), log it to `log.md` with status `failed`, set `phases.sast.per_tool.<tool>.status = "failed"` in the manifest, and continue with the other tools. The overall scan still succeeds — just with fewer findings.
 
-### A.4 Run Semgrep
+#### A.5.a Semgrep
 
 ```bash
-SEMGREP_JSON="$RUN_DIR/_semgrep_raw.json"
-SEMGREP_LOG="$RUN_DIR/_semgrep_stderr.log"
-
-cd "$PROJECT_ROOT"
-
-"$SEMGREP" \
-  --metrics=off \
-  --quiet \
-  --json \
-  --output "$SEMGREP_JSON" \
-  <... one --config <subdir> flag per selected subdir, computed in A.3 ...> \
-  "$PROJECT_ROOT" \
-  2> "$SEMGREP_LOG" || true
+SEMGREP_RAW="$RUN_DIR/_semgrep_raw.json"
+"$SEMGREP_BIN" --metrics=off --quiet --json --output "$SEMGREP_RAW" \
+  <one --config <subdir> flag per selected subdir from A.4> \
+  "$PROJECT_ROOT" 2> "$RUN_DIR/_semgrep_stderr.log" || true
 ```
 
-> **Note.** Do NOT pass `--error` to Semgrep. With `--error`, Semgrep exits non-zero on any finding, which we don't want — Semgrep finding something is a successful scan, not a failure. The `|| true` above keeps the shell happy on non-zero exit codes from rule-internal issues; we determine failure separately by checking whether `$SEMGREP_JSON` is parseable.
+Do NOT pass `--error` — Semgrep finding something is a successful scan, not a failure. The `|| true` lets us check JSON existence rather than exit code.
 
-Capture Semgrep's exit code separately. Non-zero exit with a parseable `_semgrep_raw.json` is acceptable. Non-zero exit with no JSON is a hard failure; print the stderr log and abort.
-
-Time the invocation; capture wall seconds for the manifest.
-
-### A.5 Normalize, enrich, and write findings.jsonl
+#### A.5.b Bandit (skip if no Python files in repo)
 
 ```bash
-python3 "<this-skill-dir>/scripts/normalize_semgrep.py" \
-  "$SEMGREP_JSON" \
-  --cwe-table "<this-skill-dir>/references/cwe-to-framework.json" \
-  --repo-root "$PROJECT_ROOT" \
-  --output "$RUN_DIR/findings.jsonl"
+BANDIT_RAW="$RUN_DIR/_bandit_raw.json"
+"$BANDIT_BIN" -r "$PROJECT_ROOT" -f json -o "$BANDIT_RAW" \
+  --exit-zero -x "**/.securecoder/**,**/node_modules/**,**/.venv/**,**/venv/**" \
+  2> "$RUN_DIR/_bandit_stderr.log" || true
 ```
 
-The normalizer:
-- Computes canonical IDs per the v1.0 schema (`sha256(file | line_start | rule_id)`)
-- Maps Semgrep ERROR/WARNING/INFO to securecoder's 5-level severity (with rule-id heuristics that escalate injection/secret patterns to `critical` when severity is ERROR)
-- Maps Semgrep `metadata.confidence` to securecoder's 3-level confidence
-- Enriches findings with `framework_refs` via the shipped CWE-to-framework table
-- Pulls any OWASP Top 10 category tokens from Semgrep metadata into the same `framework_refs` list
+`--exit-zero` makes Bandit always exit 0; we determine success by whether `$BANDIT_RAW` is valid JSON.
 
-Apply `severity_floor` from config: any finding with severity below the floor stays in the file but is tagged for the report's "informational" group rather than the headline counts.
-
-### A.6 Write the manifest
+#### A.5.c Gitleaks
 
 ```bash
-SEMGREP_FOUND="$(wc -l < "$RUN_DIR/findings.jsonl" | tr -d ' ')"
+GITLEAKS_RAW="$RUN_DIR/_gitleaks_raw.json"
+"$GITLEAKS_BIN" detect --no-banner --report-format json \
+  --report-path "$GITLEAKS_RAW" --source "$PROJECT_ROOT" \
+  --exit-code 0 2> "$RUN_DIR/_gitleaks_stderr.log" || true
+```
+
+`--exit-code 0` makes Gitleaks exit 0 even when secrets are found (success = scan ran; secrets = findings, not error).
+
+When the repo has no `.git/` directory, Gitleaks falls back to filesystem mode, which is what we want for repos outside version control.
+
+#### A.5.d OSV-scanner (skip if `phases.sast.per_tool.osv-scanner.status` was set to `skipped_no_lockfile` in A.0)
+
+```bash
+OSV_RAW="$RUN_DIR/_osv_raw.json"
+"$OSV_BIN" --format json --output "$OSV_RAW" "$PROJECT_ROOT" \
+  2> "$RUN_DIR/_osv_stderr.log" || true
+```
+
+**OSV network handling.** OSV-scanner needs `api.osv.dev` reachable. If the network call fails, OSV exits non-zero and `$OSV_RAW` may be empty or malformed. Record `phases.sast.per_tool.osv-scanner.status = "failed_no_network"` and continue. Don't abort the whole scan.
+
+### A.6 Normalize each tool's output
+
+For each tool that produced parseable JSON, run its normalizer. The normalizers all accept the same arguments and emit JSONL to the per-tool intermediate file.
+
+```bash
+python3 "<skill-dir>/scripts/normalize_semgrep.py"  "$SEMGREP_RAW"  --cwe-table "<skill-dir>/references/cwe-to-framework.json" --repo-root "$PROJECT_ROOT" --output "$RUN_DIR/_findings_semgrep.jsonl"
+python3 "<skill-dir>/scripts/normalize_bandit.py"   "$BANDIT_RAW"   --cwe-table "<skill-dir>/references/cwe-to-framework.json" --repo-root "$PROJECT_ROOT" --output "$RUN_DIR/_findings_bandit.jsonl"
+python3 "<skill-dir>/scripts/normalize_gitleaks.py" "$GITLEAKS_RAW" --cwe-table "<skill-dir>/references/cwe-to-framework.json" --repo-root "$PROJECT_ROOT" --output "$RUN_DIR/_findings_gitleaks.jsonl"
+python3 "<skill-dir>/scripts/normalize_osv.py"      "$OSV_RAW"      --cwe-table "<skill-dir>/references/cwe-to-framework.json" --repo-root "$PROJECT_ROOT" --output "$RUN_DIR/_findings_osv.jsonl"
+```
+
+(Only run a normalizer when its raw input exists and the corresponding tool's status is `"ok"`.)
+
+### A.7 Merge per-tool JSONL into one `findings.jsonl`
+
+```bash
+: > "$RUN_DIR/findings.jsonl"   # truncate
+for tool in semgrep bandit gitleaks osv; do
+  intermediate="$RUN_DIR/_findings_${tool}.jsonl"
+  [ -s "$intermediate" ] && cat "$intermediate" >> "$RUN_DIR/findings.jsonl"
+done
+```
+
+Canonical IDs are deterministic and per-tool prefixes in `source` keep cross-tool collisions impossible.
+
+### A.8 Write the manifest
+
+```bash
 REPO_SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo no-git)"
 
 python3 - <<PY
 import json, os, time
+def count(p):
+  try:
+    with open(p) as fh: return sum(1 for line in fh if line.strip())
+  except OSError: return 0
+def get_tool_version(name):
+  try:
+    with open(os.path.expanduser(f"~/.cache/securecoder/tools/{name}/installed.json")) as fh:
+      return json.load(fh).get("version", "")
+  except OSError: return "skipped"
+
+run_dir = os.environ["RUN_DIR"]
+per_tool = {}
+for tool, friendly in [("semgrep","semgrep"),("bandit","bandit"),
+                        ("gitleaks","gitleaks"),("osv","osv-scanner")]:
+  intermediate = f"{run_dir}/_findings_{tool}.jsonl"
+  per_tool[friendly] = {
+    "duration_s": int(os.environ.get(f"{tool.upper()}_SECONDS", "0")),
+    "findings": count(intermediate),
+    "status": os.environ.get(f"{tool.upper()}_STATUS", "ok"),
+  }
+
 manifest = {
   "schema_version": "1.0",
   "run_id": os.environ["RUN_ID"],
-  "started_at": os.environ.get("STARTED_AT", ""),
+  "started_at": os.environ["STARTED_AT"],
   "finished_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
   "repo_root": os.environ["PROJECT_ROOT"],
   "repo_sha": os.environ.get("REPO_SHA", "no-git"),
   "mode": "sast-only",
   "tools": {
-    "semgrep": os.environ["SEMGREP_VERSION"]
+    "semgrep": get_tool_version("semgrep"),
+    "bandit": get_tool_version("bandit"),
+    "gitleaks": get_tool_version("gitleaks"),
+    "osv-scanner": get_tool_version("osv-scanner"),
   },
   "rule_packs": {
-    "returntocorp/semgrep-rules": os.environ["SHA"]
+    "returntocorp/semgrep-rules": os.environ.get("SHA", "")
   },
   "frameworks": {},
   "phases": {
     "sast": {
-      "duration_s": int(os.environ.get("SAST_SECONDS", "0")),
-      "findings": int(os.environ.get("SEMGREP_FOUND", "0")),
+      "duration_s": sum(t["duration_s"] for t in per_tool.values()),
+      "findings": count(f"{run_dir}/findings.jsonl"),
       "input_tokens": 0,
-      "output_tokens": 0
+      "output_tokens": 0,
+      "per_tool": per_tool,
     }
   },
   "totals": {
-    "findings": int(os.environ.get("SEMGREP_FOUND", "0")),
-    "duration_s": int(os.environ.get("SAST_SECONDS", "0"))
+    "findings": count(f"{run_dir}/findings.jsonl"),
+    "duration_s": sum(t["duration_s"] for t in per_tool.values())
   }
 }
-with open(os.path.join(os.environ["RUN_DIR"], "manifest.json"), "w") as fh:
+with open(f"{run_dir}/manifest.json", "w") as fh:
   json.dump(manifest, fh, indent=2)
   fh.write("\n")
 PY
 ```
 
-(Export the variables before calling: `STARTED_AT`, `RUN_ID`, `PROJECT_ROOT`, `REPO_SHA`, `SEMGREP_VERSION`, `SHA`, `SAST_SECONDS`, `SEMGREP_FOUND`, `RUN_DIR`.)
+Export the variables before calling: `RUN_ID`, `STARTED_AT`, `PROJECT_ROOT`, `REPO_SHA`, `SHA` (Semgrep rules), `RUN_DIR`, plus `<TOOL>_SECONDS` and `<TOOL>_STATUS` for each tool (`SEMGREP_SECONDS`, `SEMGREP_STATUS`, `BANDIT_SECONDS`, etc.).
 
-### A.7 Render the markdown report
+### A.9 Render the markdown report
 
 ```bash
-python3 "<this-skill-dir>/scripts/render_markdown.py" \
-  "$RUN_DIR/findings.jsonl" \
-  --manifest "$RUN_DIR/manifest.json" \
-  --output "$RUN_DIR/report.md"
+python3 "<skill-dir>/scripts/render_markdown.py" "$RUN_DIR/findings.jsonl" \
+  --manifest "$RUN_DIR/manifest.json" --output "$RUN_DIR/report.md"
 ```
 
-The HTML report and cross-run trend section are placeholders in v0.2.0 — they land in slice 04.
+HTML and trend sections are placeholders for slice 04.
 
-### A.8 Update the `latest` pointer
+### A.10 Update the `latest` pointer
 
 ```bash
 LATEST="$PROJECT_ROOT/.securecoder/runs/latest"
-# Symlink on POSIX; small JSON file fallback on Windows.
 if ln -sfn "$RUN_ID" "$LATEST" 2>/dev/null; then
-  : # symlink succeeded
+  :
 else
   echo "{\"latest_run_id\": \"$RUN_ID\"}" > "$LATEST.json"
 fi
 ```
 
-If the symlink approach fails on Windows or restricted filesystems, the `.json` fallback satisfies the same role — downstream skills read either form.
-
-### A.9 Write the `.securecoder/.gitignore` if it doesn't exist
+### A.11 Ensure `.securecoder/.gitignore`
 
 ```bash
 GITIGNORE="$PROJECT_ROOT/.securecoder/.gitignore"
@@ -377,18 +524,19 @@ EOF
 fi
 ```
 
-(`/securecoder-setup` writes this too; this step is a safety net for users who skipped setup.)
-
-### A.10 Print the summary and exit
-
-Output to the user, with substitutions:
+### A.12 Print the summary
 
 ```
 securecoder-scan complete
   Run dir:     .securecoder/runs/$RUN_ID/
   Mode:        SAST only
-  Findings:    <N> total (<critical> critical, <high> high, <medium> medium, <low> low, <info> info)
-  Wall time:   <T>s
+  Findings:    <total> total (<crit> critical, <high> high, <med> medium, <low> low, <info> info)
+  Per tool:
+    semgrep:     <N> findings (<status>, <T>s)
+    bandit:      <N> findings (<status>, <T>s)
+    gitleaks:    <N> findings (<status>, <T>s)
+    osv-scanner: <N> findings (<status>, <T>s)
+  Wall time:   <total>s
   LLM cost:    $0
 
   Report:      .securecoder/runs/$RUN_ID/report.md
@@ -396,41 +544,42 @@ securecoder-scan complete
   Manifest:    .securecoder/runs/$RUN_ID/manifest.json
 
   Next steps:
-    - /securecoder-fix       remediate findings (lands in v0.3.0)
+    - /securecoder-fix       remediate findings (lands in v0.5.0)
     - cat .securecoder/runs/$RUN_ID/report.md     review the report
 ```
 
-Append a final `COMPLETED` row to `$RUN_DIR/log.md`.
+Append `COMPLETED` to the run log.
 
 ## Phase B — LLM compliance pass (not yet implemented)
 
-If the user selected "LLM compliance only" or "Both" at the mode picker, do NOT run a compliance pass — that ships in slice 07. Instead, respond:
+If the user selected "LLM compliance only" or "Both" at the mode picker, respond:
 
 > The LLM compliance pass is not yet available in this release. It is tracked in slice 07 of the project backlog ([`docs/issues/07-scan-asvs-compliance-pass.md`](../../../docs/issues/07-scan-asvs-compliance-pass.md)). For now, the SAST-only mode is fully functional.
 >
 > Re-run `/securecoder-scan` and pick "SAST only" to proceed.
 
-Do not proceed with phase A in this case. Exit cleanly.
+Exit cleanly without running phase A.
 
 ## Failure handling
 
 **Soft failures — log and continue.**
 
-- Some files unreadable (permissions) → repo walker skips them and records nothing; scan still proceeds with the rest.
+- One tool fails (crash, no JSON, network error for OSV) → log it, mark `per_tool.<tool>.status` accordingly, continue with the others.
+- A normalizer chokes on unexpected tool output → log the exception, mark that tool's status `normalize_failed`, continue.
+- Some files unreadable → walker skips them silently; scan still proceeds.
 - Semgrep emits warnings on stderr but returns valid JSON → recorded in `_semgrep_stderr.log` and ignored.
-- An individual Semgrep rule errors out internally → recorded in Semgrep's own `errors` array within the JSON; surface a one-line note in the run log but don't fail.
 
 **Hard failures — write a crash report and exit.**
 
 Triggers:
-- `python3` not on PATH (Semgrep install impossible)
-- `git` not on PATH (rule fetch impossible)
-- Disk full or permission denied writing to `$RUN_DIR` or `$HOME/.cache/securecoder/`
-- Semgrep returns non-zero AND wrote no `_semgrep_raw.json` AND no findings were captured
-- The cached rule-pack directory's SHA doesn't match its name (integrity tamper)
-- The user picked an unimplemented mode (this is a clean exit, not a crash — see Phase B)
+- `python3` not on PATH (most tools impossible).
+- `git` not on PATH (rule fetch impossible).
+- Disk full or permission denied writing to `$RUN_DIR` or `~/.cache/securecoder/`.
+- ALL FOUR tools failed (no findings produceable; the scan has no value).
+- The cached rule-pack directory's SHA doesn't match its name (integrity tamper).
+- The user picked an unimplemented mode (this is a clean exit, not a crash — see Phase B).
 
-On hard failure (not user abort or unimplemented-mode):
+On hard failure:
 
 ```bash
 cat > "$RUN_DIR/crash_report.md" <<EOF
@@ -452,22 +601,22 @@ $(cat "$RUN_DIR/log.md")
 EOF
 ```
 
-Print a one-paragraph summary pointing the user at the crash report. Do not modify the user's working tree.
+Print a one-paragraph summary pointing at the crash report. Do not modify the user's working tree.
 
 ## Invariants
 
-These hold at every phase boundary; if you ever observe one violated, that's itself a hard failure:
+These hold at every phase boundary:
 
-1. Every dispatched tool (Semgrep) has at least a recorded version in `installed.json` under `$TOOLS_DIR`.
-2. Every fetched rule pack has a SHA recorded in its `manifest.json` and that SHA equals its parent directory name.
-3. After a successful run, `$RUN_DIR/findings.jsonl` exists and every line parses as JSON conforming to v1.0 schema fields.
-4. After a successful run, `$RUN_DIR/manifest.json` exists and includes `schema_version: "1.0"`, `run_id`, `tools`, `rule_packs`, and `phases.sast` keys.
+1. Every dispatched tool has a recorded version in `installed.json` under its tool cache dir.
+2. Every fetched rule pack has a SHA in its `manifest.json` and that SHA equals its parent directory name.
+3. After a successful run, `$RUN_DIR/findings.jsonl` exists. Every non-empty line parses as JSON and conforms to v1.0 schema fields.
+4. After a successful run, `$RUN_DIR/manifest.json` exists with `schema_version: "1.0"`, `run_id`, `tools` (with one entry per attempted tool), `rule_packs`, and `phases.sast.per_tool` (one entry per attempted tool with `status` and `findings` keys).
 5. `latest` (or `latest.json`) points at the most recent run id that completed without a `crash_report.md`.
+
+If any invariant is violated, that's itself a hard failure.
 
 ## Notes for future slices
 
-This SKILL.md is structured to absorb additional SAST tools (slice 03) and the compliance pass (slice 07) without major restructuring:
-
-- New SAST tools each add: an installer block in A.1, an invocation block in A.4, a normalizer call in A.5 with their own `normalize_<tool>.py` script, and a row in `manifest.json.tools`.
-- The compliance pass adds: a framework fetcher analogous to A.2, a relevance-filter step before invoking the LLM, the per-file/per-chapter dispatch loop, and a coverage-matrix validator. The findings normalize into the same `findings.jsonl` with `category: "compliance"`.
-- The HTML report (slice 04) shares the manifest + findings inputs; `render_markdown.py` becomes one of two siblings (`render_html.py` being the other).
+- **Slice 04** (HTML + trend) — adds `render_html.py` as a sibling of `render_markdown.py`. Reuses the same `findings.jsonl` + `manifest.json` inputs. Adds run-history diff against prior runs.
+- **Slice 07** (compliance) — adds a framework fetcher analogous to A.3, a relevance filter, an architect-prompt template, and a coverage-matrix validator. Compliance findings normalize into the same `findings.jsonl` with `category: "compliance"`. Phase B becomes implemented.
+- **Future SAST additions** (post-v0.x) — new tools each plug in by adding: an installer block under A.2, an invocation block under A.5, a normalizer under `scripts/normalize_<tool>.py`, a row in the per-tool merge in A.7, and a friendly name in the manifest builder.

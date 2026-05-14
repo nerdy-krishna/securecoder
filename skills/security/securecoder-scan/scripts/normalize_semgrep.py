@@ -16,17 +16,29 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import datetime as dt
-import hashlib
 import json
-import re
+import os
 import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _common import (  # noqa: E402
+    canonical_id,
+    emit_findings,
+    enrich_framework_refs,
+    extract_cwes,
+    extract_owasp_categories,
+    humanize_rule_id,
+    load_cwe_table,
+    normalize_path,
+    truncate,
+    utc_now_iso,
+)
 
 
 # Rule-id substrings that escalate Semgrep ERROR severity to "critical"
 # rather than "high". These are the patterns that, when triggered, tend
-# to indicate exploitable conditions rather than risky patterns.
+# to indicate exploitable conditions rather than merely risky patterns.
 CRITICAL_RULE_PATTERNS = (
     "secret", "hardcoded", "private-key", "api-key",
     "sql-injection", "command-injection", "os-command",
@@ -34,24 +46,10 @@ CRITICAL_RULE_PATTERNS = (
     "shell-injection", "code-injection",
 )
 
-# Matches CWE identifiers like "CWE-89", "cwe-89", "CWE 89", embedded in
-# arbitrary text Semgrep metadata sometimes uses.
-CWE_TOKEN_RE = re.compile(r"\bCWE[-\s]?(\d+)\b", re.IGNORECASE)
 
-# Matches OWASP Top 10 category prefixes like "A03", "A1", "A10".
-OWASP_CAT_RE = re.compile(r"\b(A(?:0?\d|1[0-2]))\b")
-
-
-def canonical_id(file: str, line_start: int, rule_id: str) -> str:
-    """SAST canonical ID per design.md §4 — sha256(file|line|rule_id)."""
-    h = hashlib.sha256()
-    h.update(f"{file}|{line_start}|{rule_id}".encode("utf-8"))
-    return h.hexdigest()
-
-
-def map_severity(semgrep_severity: str, rule_id: str, metadata: dict) -> str:
+def map_severity(semgrep_severity, rule_id: str, metadata: dict) -> str:
     """Map Semgrep ERROR/WARNING/INFO to the securecoder 5-level scale."""
-    sev = (semgrep_severity or "").upper()
+    sev = (semgrep_severity or "").upper() if isinstance(semgrep_severity, str) else ""
     impact = str(metadata.get("impact") or "").upper()
     lower_id = (rule_id or "").lower()
     is_critical = (
@@ -77,113 +75,27 @@ def map_confidence(metadata: dict) -> str:
     return "medium"
 
 
-def extract_cwes(metadata: dict) -> list[str]:
-    """Extract canonical CWE-N tokens from Semgrep's varied metadata shapes."""
-    raw = metadata.get("cwe", [])
-    if isinstance(raw, str):
-        raw = [raw]
-    if not isinstance(raw, list):
-        raw = []
-    found: list[str] = []
-    for item in raw:
-        for m in CWE_TOKEN_RE.finditer(str(item)):
-            tok = f"CWE-{m.group(1)}"
-            if tok not in found:
-                found.append(tok)
-    return found
-
-
-def extract_owasp_categories(metadata: dict) -> list[str]:
-    """Extract OWASP Top 10 category tokens (e.g., 'A03') from metadata."""
-    raw = metadata.get("owasp", [])
-    if isinstance(raw, str):
-        raw = [raw]
-    if not isinstance(raw, list):
-        raw = []
-    found: list[str] = []
-    for item in raw:
-        for m in OWASP_CAT_RE.finditer(str(item)):
-            tok = m.group(1)
-            # Normalize A1 → A01 so categories sort consistently
-            if len(tok) == 2:
-                tok = "A0" + tok[1]
-            if tok not in found:
-                found.append(tok)
-    return found
-
-
-def enrich_framework_refs(
-    cwes: list[str], cwe_table: dict, extra_owasp_cats: list[str]
-) -> list[dict]:
-    """Merge CWE-derived framework refs with any OWASP categories present in
-    Semgrep metadata directly. Deduplicates by (framework, control|category).
-    """
-    refs: list[dict] = []
-    seen: set[tuple] = set()
-
-    def add(ref: dict) -> None:
-        key = (ref["framework"], ref.get("control") or ref.get("category"))
-        if key not in seen:
-            seen.add(key)
-            refs.append(ref)
-
-    for cwe in cwes:
-        entry = cwe_table.get(cwe)
-        if not entry:
-            continue
-        for r in entry.get("framework_refs", []):
-            add(dict(r))
-
-    for cat in extra_owasp_cats:
-        add({"framework": "owasp-top-10-2021", "category": cat})
-
-    return refs
-
-
-def humanize_rule_id(rule_id: str) -> str:
-    """Turn `python.django.security.sql-injection-raw-query` into something
-    closer to a human-readable title."""
-    tail = rule_id.rsplit(".", 1)[-1] if "." in rule_id else rule_id
-    words = tail.replace("_", "-").split("-")
-    return " ".join(w.capitalize() for w in words if w)
-
-
-def truncate(s: str, n: int) -> str:
-    s = (s or "").strip()
-    return s if len(s) <= n else s[: n - 1] + "…"
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("semgrep_json", help="Path to Semgrep --json output file")
     ap.add_argument("--cwe-table", required=True,
                     help="Path to cwe-to-framework.json")
     ap.add_argument("--repo-root", required=True,
-                    help="Project root path; used to normalize file paths")
+                    help="Project root; used to normalize file paths")
     ap.add_argument("--output", "-o",
                     help="Write JSONL here instead of stdout")
     args = ap.parse_args()
 
     with open(args.semgrep_json, encoding="utf-8") as f:
         data = json.load(f)
-    with open(args.cwe_table, encoding="utf-8") as f:
-        cwe_table = json.load(f)
-
+    cwe_table = load_cwe_table(args.cwe_table)
     repo_root = Path(args.repo_root).resolve()
-    now_iso = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    now = utc_now_iso()
 
-    out_lines: list[str] = []
+    findings: list = []
 
     for r in data.get("results", []):
-        # Path normalization — Semgrep returns absolute or relative paths
-        # depending on invocation; we always emit the path relative to
-        # repo_root for stable canonical IDs across machines.
-        raw_path = r.get("path", "")
-        try:
-            rel_path = str(Path(raw_path).resolve().relative_to(repo_root))
-        except ValueError:
-            rel_path = raw_path
-
+        rel_path = normalize_path(r.get("path", ""), repo_root)
         rule_id = r.get("check_id", "") or ""
         start = r.get("start", {}) or {}
         end = r.get("end", {}) or {}
@@ -193,11 +105,18 @@ def main() -> None:
         line_start = int(start.get("line", 0) or 0)
         line_end = int(end.get("line", line_start) or line_start)
 
-        cwes = extract_cwes(metadata)
-        owasp_cats = extract_owasp_categories(metadata)
+        cwes = extract_cwes(metadata.get("cwe", []))
+        owasp_cats = extract_owasp_categories(metadata.get("owasp", []))
         severity = map_severity(extra.get("severity"), rule_id, metadata)
         confidence = map_confidence(metadata)
-        framework_refs = enrich_framework_refs(cwes, cwe_table, owasp_cats)
+        framework_refs = enrich_framework_refs(
+            cwes,
+            cwe_table,
+            extra_refs=[
+                {"framework": "owasp-top-10-2021", "category": cat}
+                for cat in owasp_cats
+            ],
+        )
 
         tags_raw = metadata.get("technology", [])
         if isinstance(tags_raw, str):
@@ -207,7 +126,6 @@ def main() -> None:
         else:
             tags = []
 
-        # fix_complexity is a coarse hint for /securecoder-fix's gating
         has_fix = bool(metadata.get("fix") or extra.get("fix"))
         fix_complexity = "low" if has_fix else "medium"
 
@@ -229,22 +147,17 @@ def main() -> None:
             "description": truncate(extra.get("message", ""), 500),
             "evidence": truncate(extra.get("lines", ""), 500),
             "remediation_hint": truncate(
-                str(metadata.get("fix") or extra.get("fix") or ""), 500
+                metadata.get("fix") or extra.get("fix") or "", 500
             ),
             "fix_complexity": fix_complexity,
             "tags": tags,
-            "detected_at": now_iso,
+            "detected_at": now,
             "status": "open",
             "history": [],
         }
+        findings.append(finding)
 
-        out_lines.append(json.dumps(finding))
-
-    payload = "\n".join(out_lines) + ("\n" if out_lines else "")
-    if args.output:
-        Path(args.output).write_text(payload, encoding="utf-8")
-    else:
-        sys.stdout.write(payload)
+    emit_findings(findings, args.output)
 
 
 if __name__ == "__main__":
