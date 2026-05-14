@@ -42,11 +42,9 @@ If the file is missing, mention once: "Running with default configuration. Run `
 
 Show three options with token warnings. Use whatever interactive prompt mechanism the host agent supports.
 
-- **SAST only** *(implemented)* — Runs Semgrep, Bandit, Gitleaks, and OSV-scanner. Free in LLM tokens. Typical wall time: under a minute for a small repo, a few minutes for a large one.
-- **LLM compliance only** *(not yet implemented in this release)* — Tracked for slice 07.
-- **Both** *(not yet implemented in this release)* — Tracked for slice 07.
-
-If the user picks an unimplemented mode, jump to [§ Phase B](#phase-b--llm-compliance-pass-not-yet-implemented).
+- **SAST only** — Runs Semgrep, Bandit, Gitleaks, and OSV-scanner. Free in LLM tokens. Typical wall time: under a minute for a small repo, a few minutes for a large one.
+- **LLM compliance only** — Runs the OWASP ASVS v5 compliance review (one LLM call per relevant file × chapter pair). Token-heavy: typical cost is dollars-to-tens-of-dollars depending on repo size and host model. See cost estimate below.
+- **Both** *(Recommended for thorough audits)* — SAST first, then compliance. SAST findings often reveal issues the compliance pass would also flag, plus stuff compliance misses.
 
 ### 4. Generate the run ID and run directory
 
@@ -578,15 +576,198 @@ securecoder-scan complete
 
 Append `COMPLETED` to the run log.
 
-## Phase B — LLM compliance pass (not yet implemented)
+## Phase B — LLM compliance pass
 
-If the user selected "LLM compliance only" or "Both" at the mode picker, respond:
+Only runs when the user picked "LLM compliance only" or "Both" at the mode picker. Iterates over file × chapter pairs from the relevance filter, dispatches one LLM call per pair, validates the coverage matrix is complete (one retry if incomplete), and merges compliance findings into the same `findings.jsonl` as Phase A.
 
-> The LLM compliance pass is not yet available in this release. It is tracked in slice 07 of the project backlog ([`docs/issues/07-scan-asvs-compliance-pass.md`](../../../docs/issues/07-scan-asvs-compliance-pass.md)). For now, the SAST-only mode is fully functional.
->
-> Re-run `/securecoder-scan` and pick "SAST only" to proceed.
+> **HITL — prompt template under maintainer review.** The architect prompt at `<skill-dir>/references/asvs-architect-prompt.md` is high-leverage. Changes to it should go through a manual review before merge.
 
-Exit cleanly without running phase A.
+### B.0 Determine which frameworks are active
+
+Read `config.frameworks` from `.securecoder/config.json` (default: `["asvs-v5"]`).
+
+In v0.6.0 we only know how to run **ASVS v5**. MASVS / Proactive Controls / Cheatsheets land in slice 13. If the user has additional frameworks enabled, run ASVS now and note the others as `skipped_not_yet_implemented` in `manifest.phases.compliance.per_framework`.
+
+### B.1 Fetch the ASVS chapter content
+
+Pinned upstream: **`OWASP/ASVS` at branch `master`** (the OWASP repo doesn't tag every release; we content-address by the resulting SHA, same model as the Semgrep rule pack).
+
+```bash
+ASVS_REPO="https://github.com/OWASP/ASVS.git"
+ASVS_BRANCH="master"
+ASVS_CACHE_ROOT="$HOME/.cache/securecoder/rules/frameworks/asvs"
+TMP_CLONE="$ASVS_CACHE_ROOT/_tmp_clone"
+
+mkdir -p "$ASVS_CACHE_ROOT"
+REUSE_DIR=""
+for d in "$ASVS_CACHE_ROOT"/*/; do
+  [ -d "$d/5.0/en" ] || continue
+  if [ -f "$d/manifest.json" ]; then
+    REUSE_DIR="$d"
+    break
+  fi
+done
+
+if [ -z "$REUSE_DIR" ]; then
+  rm -rf "$TMP_CLONE"
+  git clone --depth 1 --branch "$ASVS_BRANCH" "$ASVS_REPO" "$TMP_CLONE" 2>&1
+  ASVS_SHA="$(git -C "$TMP_CLONE" rev-parse HEAD)"
+  FINAL_DIR="$ASVS_CACHE_ROOT/$ASVS_SHA"
+  if [ -d "$FINAL_DIR" ]; then
+    rm -rf "$TMP_CLONE"
+  else
+    mv "$TMP_CLONE" "$FINAL_DIR"
+    cat > "$FINAL_DIR/manifest.json" <<EOF
+{"source": "$ASVS_REPO", "branch": "$ASVS_BRANCH", "sha": "$ASVS_SHA", "fetched_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+EOF
+  fi
+  ASVS_DIR="$FINAL_DIR"
+else
+  ASVS_DIR="$REUSE_DIR"
+  ASVS_SHA="$(python3 -c "import json; print(json.load(open('$ASVS_DIR/manifest.json'))['sha'])")"
+fi
+
+CHAPTERS_DIR="$ASVS_DIR/5.0/en"
+```
+
+Allowlist: `OWASP/*` is auto-allowed (covered by the v0.2.0 trust model). Integrity check: cache dir name must match its `manifest.json.sha`.
+
+Offline-fail message follows the same pattern as A.2.
+
+### B.2 Build the file × chapter dispatch list
+
+```bash
+python3 "<skill-dir>/scripts/file_relevance.py" \
+  "$RUN_DIR/repo_map.json" \
+  --chapter-relevance "<skill-dir>/references/chapter-relevance.json" \
+  --repo-root "$PROJECT_ROOT" \
+  --output "$RUN_DIR/_compliance_pairs.json"
+```
+
+The filter cuts the dispatch list to relevant pairs only — files whose language matches the chapter, with optional keyword-trigger gating. Read the output's `total_pairs` count for the cost estimate.
+
+If `total_pairs` is 0, skip the compliance pass entirely and proceed to A.6 (normalize) with only SAST findings. Set `manifest.phases.compliance.status = "skipped_no_pairs"`.
+
+### B.3 Show the user the compliance cost estimate
+
+```
+Compliance pass estimate (ASVS v5):
+  Files in scope:           <N>
+  File × chapter pairs:     <P>  (filtered down from <N × 17>)
+  LLM calls expected:       <P>  (one per pair)
+  Estimated input tokens:   ~<P × 20000> = <T_in>
+  Estimated output tokens:  ~<P × 5000> = <T_out>
+
+Approximate cost at common rates:
+  Claude Opus 4.7:    $<X.XX>      (input $15/M, output $75/M)
+  Claude Sonnet 4.6:  $<Y.YY>      (input $3/M,  output $15/M)
+  Claude Haiku 4.5:   $<Z.ZZ>      (input $1/M,  output $5/M)
+
+Wall time estimate (sequential dispatch): ~<P × 30s> = <hours/minutes>
+
+Continue? [proceed / abort]
+```
+
+Wait for `proceed`. On `abort`, append `cancelled-at-compliance-estimate` to the run log and skip Phase B (Phase A's results still produce a valid report).
+
+### B.4 Dispatch each pair (sequential)
+
+For each pair in `_compliance_pairs.json`:
+
+1. **Compose the prompt.** Read the architect prompt template at `<skill-dir>/references/asvs-architect-prompt.md`. Read the chapter content from `$CHAPTERS_DIR/<filename>`. Read the target file (relative to PROJECT_ROOT) with line numbers prefixed for citation. Substitute the `{{...}}` variables:
+   - `{{chapter_id}}` → e.g. `V1`
+   - `{{chapter_title}}` → e.g. `Encoding and Sanitization`
+   - `{{chapter_content}}` → full chapter markdown
+   - `{{file_path}}` → relative path
+   - `{{language}}` → detected language
+   - `{{line_count}}` → file line count
+   - `{{file_content_with_line_numbers}}` → file content with each line prefixed by `NNN: `
+
+2. **Dispatch the LLM call.** This is a single host-LLM turn. The host agent reads the composed prompt and produces the response. Save the response to `$RUN_DIR/_compliance/<NNNN>_<chapter_id>_<file-slug>.md`. (Pad the index to 4 digits.)
+
+3. **Validate the coverage matrix.**
+
+   ```bash
+   python3 "<skill-dir>/scripts/validate_coverage.py" \
+     "$CHAPTERS_DIR/<chapter_filename>" \
+     "$RUN_DIR/_compliance/<NNNN>_<chapter_id>_<file-slug>.md" \
+     --json > "$RUN_DIR/_compliance/<NNNN>_validation.json"
+   ```
+
+   If `status: "incomplete"` → retry once. The retry prompt appends:
+
+   > **Retry context (try 2 of 2)**
+   >
+   > Your previous response was missing coverage matrix rows for: `<missing-control-ids>`. Re-emit the complete two-section response. Every control ID listed in the chapter must have exactly one row in the coverage matrix.
+
+   On second failure (still incomplete) → mark this pair `architect_incomplete` in the run log and skip it (no findings emitted for this pair, but the scan as a whole continues).
+
+4. **Normalize compliance findings.**
+
+   ```bash
+   python3 "<skill-dir>/scripts/normalize_compliance.py" \
+     "$RUN_DIR/_compliance/<NNNN>_<chapter_id>_<file-slug>.md" \
+     --framework asvs-v5 \
+     --chapter-id "<chapter_id>" \
+     --cwe-table "<skill-dir>/references/cwe-to-framework.json" \
+     --repo-root "$PROJECT_ROOT" \
+     --output "$RUN_DIR/_compliance/<NNNN>_findings.jsonl"
+   ```
+
+5. **Append to the merged findings file.** After all pairs are processed, concatenate `_compliance/*_findings.jsonl` into `findings.jsonl` alongside the SAST findings.
+
+### B.5 Update the manifest
+
+Add a `compliance` phase entry to `phases`:
+
+```json
+"phases": {
+  "sast": { ... },
+  "compliance": {
+    "duration_s": <total seconds>,
+    "findings": <count>,
+    "input_tokens": <est sum>,
+    "output_tokens": <est sum>,
+    "frameworks_run": ["asvs-v5"],
+    "pairs_total": <P>,
+    "pairs_successful": <P-skipped>,
+    "pairs_architect_incomplete": <N>,
+    "status": "ok" | "partial" | "failed"
+  }
+}
+```
+
+Also populate `manifest.frameworks`:
+
+```json
+"frameworks": { "asvs-v5": "<ASVS_SHA shortened to 12>" }
+```
+
+### B.6 Compute the per-framework compliance posture
+
+For each framework that ran, compute posture:
+
+```python
+controls_evaluated = (count of unique control IDs across all coverage matrices)
+controls_with_findings = (count of unique control IDs where any pair returned Fail)
+controls_passing = controls_evaluated - controls_with_findings
+posture_score = controls_passing / controls_evaluated  # 0.0 to 1.0
+```
+
+Insert into manifest:
+
+```json
+"compliance_posture": {
+  "asvs-v5": {
+    "controls_evaluated": 142,
+    "controls_passing": 119,
+    "controls_with_findings": 23,
+    "posture_score": 0.84
+  }
+}
+```
+
+The HTML and markdown renderers display this in their compliance-posture section (previously a placeholder).
 
 ## Failure handling
 

@@ -1,0 +1,129 @@
+{
+  "_about": "Per-chapter applicability hints for the LLM-driven ASVS compliance pass. Each chapter declares which languages it applies to and (optionally) keyword triggers in file content. The file_relevance.py helper uses these to cut the file × chapter dispatch list before any LLM call. Missing pairs save tokens; over-included pairs cost tokens but never affect correctness (the LLM marks them N/A).",
+  "_schema_version": "1.0",
+  "_chapters": {
+    "V1": {
+      "id": "V1",
+      "title": "Encoding and Sanitization",
+      "filename": "0x10-V1-Encoding-Sanitization.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "toml", "yaml", "css", "html"],
+      "keyword_triggers": []
+    },
+    "V2": {
+      "id": "V2",
+      "title": "Validation and Business Logic",
+      "filename": "0x11-V2-Validation-Business-Logic.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "toml", "yaml", "css", "html", "json"],
+      "keyword_triggers": []
+    },
+    "V3": {
+      "id": "V3",
+      "title": "Web Frontend Security",
+      "filename": "0x12-V3-Web-Frontend-Security.md",
+      "applies_to_languages": ["html", "javascript", "typescript", "css"],
+      "keyword_triggers": []
+    },
+    "V4": {
+      "id": "V4",
+      "title": "API and Web Service",
+      "filename": "0x13-V4-API-and-Web-Service.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp", "swift"],
+      "keyword_triggers": ["@app.route", "@router", "FastAPI", "express", "Flask", "Django", "REST", "GraphQL", "/api/", "@RestController", "@RequestMapping", "func.*Handler", "http.HandleFunc"]
+    },
+    "V5": {
+      "id": "V5",
+      "title": "File Handling",
+      "filename": "0x14-V5-File-Handling.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp", "swift", "c", "cpp", "rust"],
+      "keyword_triggers": ["open(", "fs.read", "fs.write", "fopen", "FileReader", "FileWriter", "os.Open", "ioutil.Read", "path", "upload", "download"]
+    },
+    "V6": {
+      "id": "V6",
+      "title": "Authentication",
+      "filename": "0x15-V6-Authentication.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["password", "login", "signin", "register", "auth", "credential", "bcrypt", "argon2", "scrypt", "PBKDF2", "jwt", "session", "oauth"]
+    },
+    "V7": {
+      "id": "V7",
+      "title": "Session Management",
+      "filename": "0x16-V7-Session-Management.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["session", "cookie", "setcookie", "Set-Cookie", "samesite", "httpOnly", "secure", "csrf"]
+    },
+    "V8": {
+      "id": "V8",
+      "title": "Authorization",
+      "filename": "0x17-V8-Authorization.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["@requires", "is_admin", "permission", "role", "@authorize", "check_access", "rbac", "abac", "authorize", "current_user"]
+    },
+    "V9": {
+      "id": "V9",
+      "title": "Self-contained Tokens",
+      "filename": "0x18-V9-Self-contained-Tokens.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["jwt", "JsonWebToken", "JWS", "JWE", "PASETO", "id_token", "access_token", "refresh_token", "signed_token"]
+    },
+    "V10": {
+      "id": "V10",
+      "title": "OAuth and OIDC",
+      "filename": "0x19-V10-OAuth-and-OIDC.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["oauth", "oidc", "openid", "authorize_url", "token_endpoint", "PKCE", "client_secret", "redirect_uri"]
+    },
+    "V11": {
+      "id": "V11",
+      "title": "Cryptography",
+      "filename": "0x20-V11-Cryptography.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp", "swift", "c", "cpp", "rust"],
+      "keyword_triggers": ["crypto", "encrypt", "decrypt", "hash", "hmac", "sha", "md5", "aes", "rsa", "ecdsa", "tls", "ssl", "cipher", "random", "secrets.token"]
+    },
+    "V12": {
+      "id": "V12",
+      "title": "Secure Communication",
+      "filename": "0x21-V12-Secure-Communication.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["http://", "https://", "requests.get", "fetch(", "axios", "urlopen", "ssl", "tls", "verify=False", "rejectUnauthorized"]
+    },
+    "V13": {
+      "id": "V13",
+      "title": "Configuration",
+      "filename": "0x22-V13-Configuration.md",
+      "applies_to_languages": ["yaml", "json", "toml", "python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "excludes_languages": ["markdown"],
+      "keyword_triggers": ["DEBUG", "debug", "ENV", "environ", "config", "settings", "SECRET_KEY", "ALLOWED_HOSTS", "CORS"]
+    },
+    "V14": {
+      "id": "V14",
+      "title": "Data Protection",
+      "filename": "0x23-V14-Data-Protection.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["pii", "PII", "credit_card", "ssn", "encrypt", "mask", "redact", "logger.info", "console.log", "print(", "log.printf", "sensitive"]
+    },
+    "V15": {
+      "id": "V15",
+      "title": "Secure Coding and Architecture",
+      "filename": "0x24-V15-Secure-Coding-and-Architecture.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css", "html", "yaml", "toml", "json"],
+      "keyword_triggers": []
+    },
+    "V16": {
+      "id": "V16",
+      "title": "Logging and Error Handling",
+      "filename": "0x25-V16-Logging-and-Error-Handling.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["logger", "logging", "console.log", "log.printf", "panic(", "raise ", "throw ", "try:", "catch", "except"]
+    },
+    "V17": {
+      "id": "V17",
+      "title": "WebRTC",
+      "filename": "0x26-V17-WebRTC.md",
+      "applies_to_languages": ["javascript", "typescript", "html"],
+      "keyword_triggers": ["WebRTC", "RTCPeerConnection", "RTCDataChannel", "getUserMedia", "MediaStream"]
+    }
+  }
+}

@@ -4,6 +4,29 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-14
+
+`/securecoder-scan` gains the LLM-driven ASVS v5 compliance pass. Mode picker now offers SAST only / LLM compliance only / Both. Compliance findings merge into the same `findings.jsonl` as SAST findings; per-framework posture score appears in both markdown and HTML reports.
+
+### Added
+- **ASVS v5 compliance pass** as Phase B of `/securecoder-scan`. Fetches `OWASP/ASVS` at branch `master`, content-addressed by commit SHA. Dispatches one LLM call per file × chapter pair, validates coverage matrix is complete, retries once on incomplete coverage, normalizes findings.
+- **`references/asvs-architect-prompt.md`** — the LLM prompt template that drives every compliance pair. HITL — changes deserve manual review since the wording shapes the whole compliance output.
+- **`references/chapter-relevance.json`** — per-chapter applicability hints for ASVS V1–V17. Each chapter declares which languages apply, optional exclusions, and optional keyword triggers. Cuts the dispatch list aggressively to keep token cost down.
+- **`scripts/file_relevance.py`** — builds the file × chapter dispatch list from the repo walker output and the relevance table.
+- **`scripts/validate_coverage.py`** — parses chapter source for expected control IDs, parses the LLM response for found control IDs, emits a missing-controls list for retry composition. Same pattern as asvs-shell.
+- **`scripts/normalize_compliance.py`** — extracts the LLM's findings JSON array (tolerant balanced-bracket scanner; works whether the array is in markdown fences or bare in the response), normalizes each entry to the v1.0 schema, adds canonical IDs and framework refs.
+- **Compliance posture in the manifest.** `compliance_posture.<framework>` with `controls_evaluated`, `controls_passing`, `controls_with_findings`, `posture_score` (0.0–1.0). Reports display this in the compliance-posture section that was previously a placeholder.
+
+### Pinned upstream versions
+- OWASP ASVS: branch `master` (no v5 tag yet on the OWASP repo), content-addressed by commit SHA in the per-framework manifest.
+- Other pins unchanged from v0.5.0.
+
+### Compatibility
+- MASVS / Proactive Controls / Cheatsheets are not yet supported by the compliance pass. They land in slice 13 (v0.12.0). Selecting them in `/securecoder-setup` doesn't break v0.6.0 — they're recorded but skipped with `status: "skipped_not_yet_implemented"`.
+
+### Tests
+- Deferred. The pipeline is well-typed end-to-end (relevance filter → prompt compose → host LLM → validate → normalize → merge); each helper smoke-tested in isolation with synthetic inputs.
+
 ## [0.5.0] — 2026-05-14
 
 `/securecoder-fix` becomes functional. Reads findings from the latest (or specified) scan run, asks the user which severities to fix, then runs a per-fix loop with mandatory pre-flight safeguards, automatic rollback on verification failure, and one git commit per successful fix.
@@ -122,7 +145,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.6.0
 [0.5.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.5.0
 [0.4.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.4.0
 [0.3.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.3.0
