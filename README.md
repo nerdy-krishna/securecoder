@@ -4,7 +4,7 @@ An installable collection of AI-agent skills that audits, fixes, and supervises 
 
 securecoder is **fully agent-driven**. No server, no daemon, no API keys. It fetches SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and OWASP framework markdown (ASVS, MASVS, Cheatsheets, Proactive Controls) at runtime on your machine — nothing is sent to a third party by the skill itself.
 
-> **Status:** v1.0.0 — stable initial release. All seven skills functional.
+> **Status:** v1.1.0 — eight skills functional. v1.1.0 adds `/securecoder-suppress` for marking false positives, plus cluster-based bulk suppression in the HTML report and tighter `/securecoder-fix` + `/securecoder-review` integration.
 
 ## Quickstart
 
@@ -64,7 +64,7 @@ That's the minimum path. The other four skills add specific value — see [§ Th
    └─────────────────────────────────────────────────────────────────┘
 ```
 
-## The seven skills
+## The eight skills
 
 | Skill | One-line purpose | When to invoke it | Follow up with |
 | --- | --- | --- | --- |
@@ -75,6 +75,7 @@ That's the minimum path. The other four skills add specific value — see [§ Th
 | `/securecoder-review` | Diff-scoped review of staged or branch changes. Pre-commit gate. | Right before you commit / push. | `/securecoder-fix` (if findings) |
 | `/securecoder-build` | Activate persistent ASVS supervision for the rest of the chat session. | When starting new feature work or a fresh project. | `/securecoder-review` (each substantive change) |
 | `/securecoder-advise` | Q&A grounded in cached framework markdown. Verbatim citations. | When you don't understand a finding, want to look up a control, or are weighing a design choice. | (no specific follow-up — read and learn) |
+| `/securecoder-suppress` | Mark findings as false positives. Team-shared via `.securecoder/suppressions.json`. | When a finding is wrong or expected. Also via the HTML report's per-finding/cluster Suppress UI. | `/securecoder-scan` (re-run for effect) |
 
 ### Example invocations
 

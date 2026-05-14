@@ -258,6 +258,47 @@ The skill detects offline cleanly: if the rule pack or framework cache is empty 
 
 ---
 
+## Scenario 11 — Triaging a 2,000-finding scan (false positives)
+
+**Goal:** A SAST scan returned 2,000 medium findings. Most are false positives. Triage efficiently rather than fixing them one-by-one.
+
+**Sequence:**
+
+```
+1.  Open .securecoder/runs/latest/report.html
+2.  Click the [Clusters] tab — the 2,000 findings collapse to ~30–50 clusters
+3.  Per cluster: [Suppress entire cluster] → reason → staged
+4.  When done, click [Export to agent] in the sticky banner
+5.  /securecoder-suppress import [paste]   (agent receives the batch)
+6.  /securecoder-scan                       (re-scan to see suppressions take effect)
+```
+
+**What happens:**
+
+- **Step 2:** The cluster view groups by `(rule_id, path_prefix)`. A rule that fires 1,247 times in `tests/fixtures/` becomes one row with a "Suppress entire cluster" button.
+- **Step 3:** Each cluster suppress emits a pattern-based entry (`{match: {rule: ..., file_glob: ...}, reason: ...}`). The cluster row stays interactive — you can also expand to see 3 sample findings before deciding.
+- **Step 4:** "Export to agent" generates `/securecoder-suppress import [{...}, {...}, ...]`. It copies the command to your clipboard with a confirmation toast.
+- **Step 5:** Paste into your agent. The skill validates each entry, dedupes against existing, and writes them to `.securecoder/suppressions.json`. Reports added / skipped / invalid counts.
+- **Step 6:** Re-running the scan applies the new suppressions during Phase A.7.5. Findings transition from `status: "open"` → `status: "suppressed"`. The report now shows "47 active (1,953 suppressed)" instead of 2,000 all-active.
+
+**Multi-select alternative for individual findings:**
+
+When findings don't cluster cleanly:
+
+1. In the flat findings view, click checkboxes on findings you want to suppress.
+2. The sticky bar shows "N selected" with `[Suppress N selected]` button.
+3. Click it; provide one reason; entries are staged.
+4. Same export flow as above.
+
+**Time budget:** 30 minutes of triage replaces 2,000 individual fix decisions.
+
+**Notes:**
+- The HTML report's staging tray is `localStorage`-persisted by run id, so you can triage over multiple sittings — return to the page, see the staged entries still there.
+- For very large reports (>1000 findings of one severity), the report shows an advisory banner suggesting alternatives (raise severity_floor, switch to clusters view).
+- Suppressions are team-shared via `.securecoder/suppressions.json` — commit the file so your teammates' scans see the same triage decisions.
+
+---
+
 ## Scenario 10 — Running multiple skills in one session
 
 **Goal:** Mix and match — scan one part, advise on a finding, review the diff, fix, re-scan.

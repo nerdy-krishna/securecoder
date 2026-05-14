@@ -4,6 +4,43 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-14
+
+False-positive suppression. Eight slices covering the full feature: schema + matcher + scan integration + new skill + fix/review integration + HTML UI (per-finding + multi-select + cluster view + suppressions section) + advise integration + 22 pytest tests.
+
+### Added
+
+- **`/securecoder-suppress` — the 8th skill.** Eight modes: `add` (with simple `key=value and key=value` match expression or JSON form), `import` (batch from HTML report), `show` (all / specific finding / stale / expired), `remove`, `expire`. Auto-populates `created_at` + `created_by` (from `git config user.email`). Dedupes by signature (match + reason).
+- **`apply_suppressions.py`** — runs as Phase A.7.5 of `/securecoder-scan` (after merge, before manifest). Implements most-specific-wins resolution (id > rule+file > rule+file_glob > rule | framework_ref > file_glob). Stamps `status: "suppressed"`, `suppression_reason`, `suppression_match` (with `suppressions.json#<index>` pointer) on matching findings. Skips expired entries at match time. No-op pass-through when no suppressions file.
+- **Manifest extensions.** `totals.findings_active`, `totals.findings_suppressed`, `suppressed_by_entry` (entry index → match count this run). Used by the HTML report's stale-suppression banner and by `/securecoder-suppress show stale`.
+- **HTML report — multi-select.** Checkboxes on every finding card, sticky bar with select-all / select-filtered / suppress-N-selected / clear-selection. Multi-select bulk-suppress prompts for one reason, stages one entry per selected finding.
+- **HTML report — per-finding suppress UI.** Three buttons per finding card (suppress this instance / rule here / rule project-wide). Inline form with required reason + optional expiry. Each entry can be added to the localStorage staging tray or copied as a single command immediately.
+- **HTML report — cluster view.** Second view tab grouping by `(rule_id, file_path_prefix)`. Heuristic prefix discovery with 3-finding floor + 80% coverage ceiling, falling back to the longest prefix with ≥3 coverage when 80% rejected everything. Per-cluster "Suppress entire cluster" generates pattern-based entries.
+- **HTML report — staging tray.** Sticky bottom banner with count, [Export to agent], [Clear], [Review]. localStorage-persisted per run id. Review modal lists staged entries with per-entry remove buttons. Export generates `/securecoder-suppress import [...]` and copies to clipboard with confirmation toast.
+- **HTML report — show-suppressed toggle.** Body defaults to `class="hide-suppressed"` when any finding has `status: "suppressed"`. Checkbox in filters area flips the class. CSS uses `:has()` to collapse file groups whose findings are all suppressed.
+- **HTML report — severity-floor advisory banner.** When any single severity exceeds 1000 findings, shows a banner suggesting raising `severity_floor` or switching to clusters view.
+- **HTML report — stale suppressions banner.** When `suppressed_by_entry` has entries with 0 matches this run, lists up to 5 inline with a pointer to `/securecoder-suppress show stale`.
+- **HTML report — Suppressions section.** Table at the bottom of every report: index, match expression, reason, created_at, created_by, expires_at, caught-this-run count.
+- **Markdown report — Suppressed findings collapsed section.** Suppressed findings exit the main grouping and appear in a `<details>` block at the end with the reason + match pointer.
+- **`/securecoder-fix` integration.** Severity-scope filter drops `status: "suppressed"` findings, recording each as `editor_skipped_suppressed` in `fix_log.jsonl` (distinct from `editor_skipped` which is user-skipped in interactive mode). Interactive one-by-one mode gains a `suppress` action alongside apply/skip/quit — prompts for reason, invokes `/securecoder-suppress add`, continues.
+- **`/securecoder-review` integration.** Both the interactive flow (via the same findings stream) and the pre-commit hook respect suppressions. `review_hook.py` reads `.securecoder/suppressions.json` directly and filters tool outputs before computing its exit code. Hook's matcher is a minimal subset (rule + file + file_glob; not id or framework_ref since the hook doesn't compute canonical IDs).
+- **`/securecoder-advise` integration.** New `suppressions` mode in the no-arg picker. Three natural-language intents recognized: "show all suppressions", "why is finding X suppressed?", "why is finding X still appearing?" — all answered from the static JSON data (no matching logic needed).
+- **22 pytest unit tests.** First proper pytest suites in the project. Cover `apply_suppressions.py` (matchers, specificity, expiry, stats, pointer format) and `compute_clusters()` (under-three-findings, shared-prefix, diverging-paths, two-cluster ordering, suppressed counted, 80% ceiling fallback, sample ordering). All 22 pass on Python 3.9.6.
+- **New per-skill guide** at `docs/guides/per-skill/securecoder-suppress.md`.
+- **New scenario** "Triaging a 2,000-finding scan" in `docs/guides/scenarios.md`.
+
+### Compatibility
+
+- **Backwards-compatible.** Repos without `.securecoder/suppressions.json` behave exactly like v1.0.0 — `apply_suppressions.py` is a pass-through; the HTML report's suppression UI still appears but stages to localStorage only.
+- **No new pinned upstreams.** No new tool installs.
+- **Schema version of `suppressions.json` is `1.0`**, separate from `config.json`'s `schema_version`.
+
+### Deferred to v1.2.0
+
+- **DOM-level virtualized rendering** of the flat findings list (~100 LOC plain-JS virtual scroll). For now, the cluster view (already shipped) is the recommended triage path for 1000+ finding repos.
+- **Source-code comment annotations** (`# securecoder: ignore`) as an alternative suppression input layer.
+- **Sampling-assisted review** for very large clusters ("review 5 random, suppress all if all FP").
+
 ## [1.0.0] — 2026-05-14
 
 The stable initial release. All seven skills functional, all 10 pinned upstreams documented, multi-framework compliance, CI bumper template, and end-to-end smoke tests across every helper script.
@@ -289,7 +326,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.1.0
 [1.0.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.0.0
 [0.12.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.12.0
 [0.11.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.11.0
