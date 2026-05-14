@@ -313,7 +313,20 @@ Team-shared file at `.securecoder/suppressions.json` (checked in alongside `conf
 }
 ```
 
-Inside `match`, every populated field is ANDed. Fields: `id` (exact canonical-ID — fragile by design, shifts with line numbers), `rule` (matches `source_rule_id`), `file` (exact path), `file_glob` (gitignore-style glob), `framework_ref` (e.g. `"asvs-v5/V1.2.1"` — matches any of the finding's framework_refs).
+Inside `match`, every populated field is ANDed. Fields: `id` (exact canonical-ID — fragile by design, shifts with line numbers), `rule` (matches `source_rule_id`), `file` (exact path), `file_glob` (gitignore-style glob), `lines` (`{start, end}` range; a finding matches if its line falls within), `framework_ref` (e.g. `"asvs-v5/V1.2.1"` — matches any of the finding's framework_refs).
+
+### Source-code annotations (v1.2.0)
+
+In addition to the persistent `.securecoder/suppressions.json`, suppressions can also come from in-source comment annotations:
+
+```python
+# securecoder: ignore reason="validated upstream"
+return db.execute(query)
+
+PASSWORD = "x"  # securecoder: ignore reason="dev-only" expires="2027-01-01"
+```
+
+`scan_annotations.py` walks the project before `apply_suppressions.py` runs and emits ephemeral entries that use the `file + lines` match shape (specificity score 1, just below `id`). Ephemeral entries get `source: "annotation"` and `created_by: "<annotation>"` to distinguish them from config-file entries in audit views. Block comments (`/* ... */`) and JSX-style braces aren't yet recognized — line comments only (`#` and `//`).
 
 ### Most-specific-wins resolution
 

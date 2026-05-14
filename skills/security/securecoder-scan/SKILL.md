@@ -421,21 +421,44 @@ done
 
 Canonical IDs are deterministic and per-tool prefixes in `source` keep cross-tool collisions impossible.
 
+### A.7.3 Scan for in-source suppression annotations (v1.2.0)
+
+Before applying suppressions, walk the project for `# securecoder: ignore` (and `// securecoder: ignore`) annotations. The scanner emits ephemeral suppression entries the next step merges with the persistent `suppressions.json`:
+
+```bash
+python3 "<skill-dir>/scripts/scan_annotations.py" "$PROJECT_ROOT" \
+  --output "$RUN_DIR/_annotations.json"
+```
+
+Annotation syntax:
+- `# securecoder: ignore` — applies to the next non-blank code line
+- `# securecoder: ignore reason="..."` — same, with explicit reason
+- `# securecoder: ignore reason="..." expires="2027-01-01"` — same, with expiry
+- Inline form (end of code line) — applies to that line
+
+The scanner outputs a JSON array of ephemeral entries with `source: "annotation"` and `created_by: "<annotation>"`. Block comments (`/* ... */`) are not yet recognized — v1.2.0 line comments only.
+
 ### A.7.5 Apply suppressions
 
-If `.securecoder/suppressions.json` exists, mark matching findings as suppressed in-place. See [`docs/design.md` § 3.9](../../../docs/design.md) for the matching semantics and most-specific-wins resolution.
+Mark matching findings as suppressed in-place. Merges persistent entries from `.securecoder/suppressions.json` (if present) with ephemeral annotation entries from A.7.3 above. See [`docs/design.md` § 3.9](../../../docs/design.md) for the matching semantics and most-specific-wins resolution.
 
 ```bash
 SUPPRESSIONS_PATH="$PROJECT_ROOT/.securecoder/suppressions.json"
-if [ -f "$SUPPRESSIONS_PATH" ]; then
+ANN_ARG=""
+if [ -s "$RUN_DIR/_annotations.json" ]; then
+  ANN_ARG="--annotations $RUN_DIR/_annotations.json"
+fi
+
+if [ -f "$SUPPRESSIONS_PATH" ] || [ -n "$ANN_ARG" ]; then
   python3 "<skill-dir>/scripts/apply_suppressions.py" \
     "$RUN_DIR/findings.jsonl" \
-    --suppressions "$SUPPRESSIONS_PATH" \
+    --suppressions "${SUPPRESSIONS_PATH:-/dev/null}" \
+    $ANN_ARG \
     --output "$RUN_DIR/findings.jsonl" \
     --stats "$RUN_DIR/_suppression_stats.json"
 else
-  # No suppressions file = no-op; create an empty stats record so the
-  # manifest writer below has a consistent input.
+  # No suppressions file AND no annotations = no-op; create an empty
+  # stats record so the manifest writer below has a consistent input.
   echo '{"totals":{"findings":0,"findings_active":0,"findings_suppressed":0},"suppressed_by_entry":{}}' \
     > "$RUN_DIR/_suppression_stats.json"
 fi

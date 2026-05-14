@@ -84,6 +84,26 @@ def test_match_combined_rule_and_glob():
     assert not aps._entry_matches_finding(entry, f3)
 
 
+def test_match_by_lines_within_range():
+    """Source-code annotation suppression — match by file + line range."""
+    f = make_finding(file="src/api/auth.py", lines={"start": 42, "end": 42})
+    # Exact line match
+    e = {"match": {"file": "src/api/auth.py", "lines": {"start": 42, "end": 42}}}
+    assert aps._entry_matches_finding(e, f)
+    # Range match — finding's start within entry's range
+    e2 = {"match": {"file": "src/api/auth.py", "lines": {"start": 40, "end": 45}}}
+    assert aps._entry_matches_finding(e2, f)
+    # Out of range (above)
+    e3 = {"match": {"file": "src/api/auth.py", "lines": {"start": 50, "end": 60}}}
+    assert not aps._entry_matches_finding(e3, f)
+    # Out of range (below)
+    e4 = {"match": {"file": "src/api/auth.py", "lines": {"start": 10, "end": 20}}}
+    assert not aps._entry_matches_finding(e4, f)
+    # Different file → mismatch even with matching lines
+    e5 = {"match": {"file": "different.py", "lines": {"start": 42, "end": 42}}}
+    assert not aps._entry_matches_finding(e5, f)
+
+
 def test_match_by_framework_ref():
     f = make_finding(framework_refs=[{"framework": "asvs-v5", "control": "V1.2.1"}])
     assert aps._entry_matches_finding({"match": {"framework_ref": "asvs-v5/V1.2.1"}}, f)
@@ -102,12 +122,14 @@ def test_empty_match_dict_rejected():
 
 
 def test_specificity_ranking():
+    # New v1.2.0 ranking: file+lines (annotation) inserted at score 1
     assert aps._specificity_score({"match": {"id": "x"}}) == 0
-    assert aps._specificity_score({"match": {"rule": "X", "file": "y"}}) == 1
-    assert aps._specificity_score({"match": {"rule": "X", "file_glob": "y/**"}}) == 2
-    assert aps._specificity_score({"match": {"rule": "X"}}) == 3
-    assert aps._specificity_score({"match": {"framework_ref": "f/c"}}) == 3
-    assert aps._specificity_score({"match": {"file_glob": "y/**"}}) == 4
+    assert aps._specificity_score({"match": {"file": "y", "lines": {"start": 5, "end": 5}}}) == 1
+    assert aps._specificity_score({"match": {"rule": "X", "file": "y"}}) == 2
+    assert aps._specificity_score({"match": {"rule": "X", "file_glob": "y/**"}}) == 3
+    assert aps._specificity_score({"match": {"rule": "X"}}) == 4
+    assert aps._specificity_score({"match": {"framework_ref": "f/c"}}) == 4
+    assert aps._specificity_score({"match": {"file_glob": "y/**"}}) == 5
 
 
 def test_most_specific_wins():

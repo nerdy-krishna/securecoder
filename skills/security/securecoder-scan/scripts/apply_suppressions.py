@@ -63,7 +63,7 @@ def _is_expired(entry: dict, today: dt.date) -> bool:
 def _entry_matches_finding(entry: dict, finding: dict) -> bool:
     """True iff every populated match-field in the entry matches the finding.
 
-    The match-field set is: id, rule, file, file_glob, framework_ref.
+    Match-field set: id, rule, file, file_glob, lines, framework_ref.
     Empty `match` (no fields populated) matches nothing — we refuse to treat
     a match-all entry as valid; users must specify at least one field.
     """
@@ -86,6 +86,21 @@ def _entry_matches_finding(entry: dict, finding: dict) -> bool:
     # file_glob — gitignore-style glob
     if "file_glob" in match:
         if not fnmatch.fnmatch(finding.get("file", ""), match["file_glob"]):
+            return False
+
+    # lines — annotation-style line range. Used by source-code annotations
+    # to scope a suppression to specific lines in a file. Matches if the
+    # finding's starting line is within the entry's [start, end] range
+    # (inclusive). Typically paired with a `file` matcher.
+    if "lines" in match:
+        m_lines = match["lines"] or {}
+        m_start = int(m_lines.get("start", 0))
+        m_end = int(m_lines.get("end", m_start))
+        f_lines = finding.get("lines") or {}
+        if not f_lines:
+            return False
+        f_start = int((f_lines or {}).get("start", 0))
+        if f_start < m_start or f_start > m_end:
             return False
 
     # framework_ref — matches any entry in the finding's framework_refs list
@@ -114,29 +129,33 @@ def _specificity_score(entry: dict) -> int:
     """Lower score = more specific. See design.md §3.9 ranking table.
 
     Score 0 (most specific):  id present
-    Score 1:                  rule + file
-    Score 2:                  rule + file_glob
-    Score 3:                  rule alone, or framework_ref alone
-    Score 4 (least specific): file_glob alone
+    Score 1:                  file + lines (annotation-style)
+    Score 2:                  rule + file
+    Score 3:                  rule + file_glob
+    Score 4:                  rule alone, or framework_ref alone
+    Score 5 (least specific): file_glob alone
 
     The order matters for tie-breaking when multiple entries match a finding.
     """
     match = entry.get("match", {}) or {}
     if "id" in match:
         return 0
+    has_lines = "lines" in match
     has_rule = "rule" in match
     has_file = "file" in match
     has_file_glob = "file_glob" in match
     has_fw_ref = "framework_ref" in match
-    if has_rule and has_file:
+    if has_file and has_lines:
         return 1
-    if has_rule and has_file_glob:
+    if has_rule and has_file:
         return 2
-    if has_rule or has_fw_ref:
+    if has_rule and has_file_glob:
         return 3
-    if has_file_glob:
+    if has_rule or has_fw_ref:
         return 4
-    return 5  # match-all — shouldn't pass _entry_matches_finding's empty check
+    if has_file_glob:
+        return 5
+    return 6  # match-all — shouldn't pass _entry_matches_finding's empty check
 
 
 def _load_findings(path: Path) -> list:
@@ -210,6 +229,11 @@ def main() -> None:
     ap.add_argument("findings", help="Path to findings.jsonl")
     ap.add_argument("--suppressions", required=True,
                     help="Path to .securecoder/suppressions.json")
+    ap.add_argument("--annotations", default=None,
+                    help="Optional path to a JSON array of ephemeral entries "
+                         "from scan_annotations.py. When present, these are "
+                         "merged AFTER persistent suppressions in the entries "
+                         "list (so config entries take precedence on ties).")
     ap.add_argument("--output",
                     help="Write enriched JSONL here (default: stdout)")
     ap.add_argument("--stats",
@@ -240,6 +264,20 @@ def main() -> None:
                 f"warning: suppressions.json could not be parsed ({e}); "
                 f"treating as empty\n"
             )
+
+    # Merge ephemeral annotation-derived entries (v1.2.0)
+    if args.annotations:
+        ann_path = Path(args.annotations)
+        if ann_path.is_file():
+            try:
+                ann_entries = json.loads(ann_path.read_text(encoding="utf-8"))
+                if isinstance(ann_entries, list):
+                    entries.extend(ann_entries)
+            except json.JSONDecodeError as e:
+                sys.stderr.write(
+                    f"warning: annotations file could not be parsed ({e}); "
+                    f"continuing without annotations\n"
+                )
 
     findings, stats = apply_suppressions(findings, entries)
 
