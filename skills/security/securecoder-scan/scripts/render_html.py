@@ -388,6 +388,99 @@ CSS = """
     color: var(--fg-mute);
   }
   body.has-staging-banner { padding-bottom: 80px; }
+
+  /* ─── View tabs + cluster view (v1.1.0 — slice 11.E) ─── */
+  .view-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 16px 0 0 0;
+    border-bottom: 2px solid var(--border);
+  }
+  .view-tabs button {
+    background: transparent;
+    color: var(--fg-mute);
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 500;
+  }
+  .view-tabs button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .view-section.hidden { display: none; }
+  details.cluster-row {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 8px 0;
+    overflow: hidden;
+  }
+  details.cluster-row > summary {
+    cursor: pointer;
+    padding: 10px 16px;
+    list-style: none;
+    display: grid;
+    grid-template-columns: 2fr 3fr 2fr 2fr auto;
+    align-items: center;
+    gap: 10px;
+  }
+  details.cluster-row > summary::-webkit-details-marker { display: none; }
+  details.cluster-row > summary::before {
+    content: "▸";
+    color: var(--fg-mute);
+    font-size: 12px;
+    margin-right: 4px;
+  }
+  details.cluster-row[open] > summary::before { content: "▾"; }
+  .cluster-rule {
+    font-family: SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .cluster-path {
+    font-family: SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    color: var(--fg-mute);
+    overflow-wrap: anywhere;
+  }
+  .cluster-count {
+    font-size: 13px;
+  }
+  .cluster-severities {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .cluster-severities .badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  .suppress-cluster-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .cluster-body {
+    background: var(--bg-elev);
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .cluster-sample {
+    font-family: SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    padding: 3px 0;
+  }
+  .muted { color: var(--fg-mute); font-size: 12px; }
 """
 
 
@@ -680,6 +773,50 @@ JS = """
     updateMultiselectBar();
   });
 
+  // View tab switching (flat findings ↔ clusters)
+  var flatView = document.getElementById('findings-view');
+  var clustersView = document.getElementById('clusters-view');
+  var tabFlat = document.getElementById('tab-flat');
+  var tabClusters = document.getElementById('tab-clusters');
+  if (tabFlat && tabClusters && flatView && clustersView) {
+    function setView(viewName) {
+      if (viewName === 'flat') {
+        flatView.classList.remove('hidden');
+        clustersView.classList.add('hidden');
+        tabFlat.classList.add('active');
+        tabClusters.classList.remove('active');
+      } else {
+        flatView.classList.add('hidden');
+        clustersView.classList.remove('hidden');
+        tabFlat.classList.remove('active');
+        tabClusters.classList.add('active');
+      }
+    }
+    tabFlat.addEventListener('click', function() { setView('flat'); });
+    tabClusters.addEventListener('click', function() { setView('clusters'); });
+  }
+
+  // Cluster suppress buttons
+  document.querySelectorAll('.suppress-cluster-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var clusterRow = btn.closest('details.cluster-row');
+      if (!clusterRow) return;
+      var rule = clusterRow.getAttribute('data-rule') || '';
+      var glob = clusterRow.getAttribute('data-glob') || '';
+      var reason = prompt(
+        'Reason for suppressing all findings in cluster:\n  rule = ' + rule +
+        (glob ? '\n  file_glob = ' + glob : '')
+      );
+      if (!reason || !reason.trim()) return;
+      var match = { rule: rule };
+      if (glob) match.file_glob = glob;
+      stageEntry({ match: match, scope: 'project', reason: reason.trim() });
+      showToast('Cluster staged. ' + stagedList.length + ' total.');
+    });
+  });
+
   // Banner buttons
   document.getElementById('btn-export-staging').addEventListener('click', exportToAgent);
   document.getElementById('btn-clear-staging').addEventListener('click', clearStaging);
@@ -838,6 +975,171 @@ def render_phases(manifest: dict) -> str:
         {''.join(rows)}
       </tbody>
     </table>
+  </section>
+"""
+
+
+def compute_clusters(findings: list) -> list:
+    """Group findings by (rule_id, common path prefix) per design.md §3.9.
+
+    Algorithm:
+      1. Group by source_rule_id.
+      2. Skip rule groups with < 3 findings (they remain in the flat view).
+      3. For each rule group, compute path components of every file, then
+         try the longest common prefix. If that prefix covers >80% of the
+         group's findings, truncate it one component at a time until
+         coverage is in [3 findings, 80% of group]. Falls back to no
+         prefix (rule-only cluster) when nothing fits.
+      4. Cluster = {rule, file_glob, count, suppressed_count,
+         severities_breakdown, samples (3 random), source}.
+    """
+    if not findings:
+        return []
+
+    # Group by rule_id
+    by_rule: dict = {}
+    for f in findings:
+        rule = f.get("source_rule_id", "")
+        if not rule:
+            continue
+        by_rule.setdefault(rule, []).append(f)
+
+    clusters: list = []
+    for rule, items in by_rule.items():
+        if len(items) < 3:
+            continue
+
+        # Compute longest common prefix of file paths (component-wise)
+        paths = [(f.get("file", "") or "").split("/") for f in items]
+        if not paths:
+            continue
+        common: list = []
+        for components in zip(*paths):
+            if len(set(components)) == 1:
+                common.append(components[0])
+            else:
+                break
+
+        # Walk prefix back trying to find the deepest one that satisfies
+        # [3 findings ≤ coverage ≤ 0.8 × group size]. If no candidate fits the
+        # 80% ceiling (e.g., all findings genuinely share one prefix),
+        # fall back to the longest prefix with ≥3 coverage so the cluster
+        # still makes sense.
+        max_cov = max(3, int(0.8 * len(items)))
+        prefix_glob = None
+        fallback_glob = None
+        while common:
+            prefix = "/".join(common)
+            cov = sum(
+                1 for f in items
+                if (f.get("file", "") or "").startswith(prefix + "/")
+                or (f.get("file", "") or "") == prefix
+            )
+            if cov >= 3 and fallback_glob is None:
+                fallback_glob = prefix + "/**"
+            if 3 <= cov <= max_cov:
+                prefix_glob = prefix + "/**"
+                break
+            common.pop()  # try a shorter prefix
+
+        if prefix_glob is None:
+            prefix_glob = fallback_glob  # may be None (rule-only cluster)
+
+        sev_counts: dict = {}
+        suppressed_count = 0
+        sources: set = set()
+        for f in items:
+            sev = f.get("severity", "info")
+            sev_counts[sev] = sev_counts.get(sev, 0) + 1
+            if f.get("status") == "suppressed":
+                suppressed_count += 1
+            sources.add(f.get("source", "?"))
+
+        # Sample up to 3 deterministically (sorted by file:line for stability)
+        sorted_items = sorted(
+            items,
+            key=lambda x: (
+                (x.get("file") or ""),
+                (x.get("lines") or {}).get("start", 0)
+            ),
+        )
+        samples = sorted_items[:3]
+
+        clusters.append({
+            "rule": rule,
+            "file_glob": prefix_glob,  # may be None
+            "count": len(items),
+            "suppressed_count": suppressed_count,
+            "active_count": len(items) - suppressed_count,
+            "severities": sev_counts,
+            "sources": sorted(sources),
+            "samples": samples,
+        })
+
+    # Order clusters by most-severe-first then by count desc
+    def cluster_sort_key(c):
+        worst_sev = min(severity_rank(s) for s in c["severities"]) if c["severities"] else 99
+        return (worst_sev, -c["count"])
+
+    clusters.sort(key=cluster_sort_key)
+    return clusters
+
+
+def render_clusters_section(clusters: list, total_findings: int) -> str:
+    if not clusters:
+        return """
+  <section id="clusters-view" class="view-section hidden">
+    <h2>Clusters</h2>
+    <p class="trend-empty">No clusters detected — every rule fires fewer than 3 times. Use the flat Findings view instead.</p>
+  </section>
+"""
+
+    rows: list = []
+    for i, c in enumerate(clusters):
+        glob = c["file_glob"] or "(any file)"
+        sev_breakdown = " ".join(
+            f'<span class="badge {sev}">{n} {SEV_LABELS.get(sev, sev)}</span>'
+            for sev in SEV_ORDER if c["severities"].get(sev, 0) > 0
+            for n in [c["severities"][sev]]
+        )
+        suppressed_note = (
+            f' <span class="muted">({c["suppressed_count"]} suppressed)</span>'
+            if c["suppressed_count"] else ""
+        )
+        sample_html = "".join(
+            f'<div class="cluster-sample">'
+            f'<code>{esc(s.get("file", ""))}</code>: '
+            f'L{(s.get("lines") or {}).get("start", "?")}'
+            f' &mdash; {esc(s.get("title", ""))}'
+            f'</div>'
+            for s in c["samples"]
+        )
+        rule_esc = esc(c["rule"])
+        glob_esc = esc(c["file_glob"] or "")
+        rows.append(f"""
+  <details class="cluster-row" data-rule="{rule_esc}" data-glob="{glob_esc}">
+    <summary>
+      <span class="cluster-rule">{rule_esc}</span>
+      <span class="cluster-path">{esc(glob)}</span>
+      <span class="cluster-count">{c["active_count"]} active{suppressed_note}</span>
+      <span class="cluster-severities">{sev_breakdown}</span>
+      <button class="suppress-cluster-btn" data-cluster-index="{i}" title="Stage a pattern-based suppression for this entire cluster">Suppress entire cluster</button>
+    </summary>
+    <div class="cluster-body">
+      <p class="meta-line">Sources: {esc(", ".join(c["sources"]))}</p>
+      <div class="cluster-samples">
+        <strong>Sample findings (3 of {c["count"]}):</strong>
+        {sample_html}
+      </div>
+    </div>
+  </details>""")
+
+    total_clustered = sum(c["count"] for c in clusters)
+    return f"""
+  <section id="clusters-view" class="view-section hidden">
+    <h2>Clusters</h2>
+    <p class="meta">{len(clusters)} cluster(s) covering {total_clustered} of {total_findings} findings. Findings outside clusters appear in the flat Findings view.</p>
+    {''.join(rows)}
   </section>
 """
 
@@ -1028,6 +1330,8 @@ def render_manifest_footer(manifest: dict) -> str:
 def render(findings: list, manifest: dict) -> str:
     framework_options = collect_framework_options(findings)
     source_options = sorted({f.get("source", "") for f in findings if f.get("source")})
+    clusters = compute_clusters(findings)
+    cluster_count = len(clusters)
 
     sev_options = "".join(
         f'<option value="{s}">{SEV_LABELS[s]}</option>' for s in SEV_ORDER
@@ -1111,7 +1415,16 @@ def render(findings: list, manifest: dict) -> str:
     <button id="btn-clear-selection">Clear selection</button>
   </div>
 
+  <div class="view-tabs">
+    <button id="tab-flat" class="active">Findings ({len(findings)})</button>
+    <button id="tab-clusters">Clusters ({cluster_count})</button>
+  </div>
+
+  <section id="findings-view" class="view-section">
 {render_findings_section(findings)}
+  </section>
+
+{render_clusters_section(clusters, len(findings))}
 {render_manifest_footer(manifest)}
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
