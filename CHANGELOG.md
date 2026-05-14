@@ -4,6 +4,26 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-14
+
+`/securecoder-fix` becomes functional. Reads findings from the latest (or specified) scan run, asks the user which severities to fix, then runs a per-fix loop with mandatory pre-flight safeguards, automatic rollback on verification failure, and one git commit per successful fix.
+
+### Added
+- **`/securecoder-fix` SAST-finding remediation** with the full safety loop: pre-flight (git clean-tree check, protected-branch warning + auto-branch, backup capture, cost estimate, approval) → per-fix loop (LLM SEARCH/REPLACE → patch apply → syntax check → re-scan → commit + push per strategy) → up to 3 retries per finding with named-failure retry context → post-flight (push accumulated, write manifest, print summary).
+- **Severity-multi-select mode picker.** All / Critical / High / Medium / Low / Critical+High (Recommended) / Critical+High+Medium / Custom subset / Interactive one-by-one / By specific finding IDs.
+- **`scripts/apply_patch.py`** — atomic SEARCH/REPLACE block parser. Validates each block has exactly one match before any write happens; either every block lands or the file is untouched. Emits structured JSON status for the agent to act on.
+- **`scripts/syntax_check.py`** — language-agnostic syntax check dispatcher. Resolves the right checker by file extension (`python3 -m py_compile`, `node --check`, `gofmt -e`, `ruby -c`, `php -l`, `bash -n`, stdlib `json.load` for JSON). Falls back to a UTF-8 validity probe when no checker is on PATH.
+- **`--restore <run-id>` mode** for rolling back a previous fix run. Shows diff between current files and backups, asks for confirmation, restores from `backups/`, optionally also `git revert`s the corresponding commits, and writes `restore_log.md`. Works on non-git repos via backups alone.
+- **Push-strategy honoring** from `.securecoder/config.json`. `push-each` pushes after each commit, `commit-local-push-at-end` (default) batches the push to post-flight, `commit-local-never-push` skips push entirely.
+- **Manual-review gating.** Findings with `fix_complexity: "high"` or `lines: null` are marked `manual_review_required` and skipped. Compliance findings (`category: "compliance"`) are also marked `manual_review_required` for now; full handling lands in v0.7.0.
+
+### Compatibility
+- No new pinned upstreams. Re-uses the cached SAST tool binaries from v0.2.0–0.4.0 for re-scan verification.
+- Python: 3.9+. Helper scripts use stdlib only.
+
+### Tests
+- Deferred. Manual smoke-tested `apply_patch.py` happy path, no-match path, and `syntax_check.py` on a Python file end-to-end.
+
 ## [0.4.0] — 2026-05-14
 
 Every `/securecoder-scan` run now produces both a markdown and a self-contained HTML report, plus a cross-run trend section that compares the current findings to the most recent prior run.
@@ -102,7 +122,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.5.0
 [0.4.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.4.0
 [0.3.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.2.0
