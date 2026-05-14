@@ -261,6 +261,124 @@ Q&A grounded in fetched framework markdown and (optionally) the latest scan's fi
 
 **Helper:** `scripts/search_rules.py` performs keyword/concept search across cached framework markdown; returns top-N matching sections with control IDs. Agent invokes internally; user can ask directly ("search the ASVS for SSRF").
 
+### 3.8 `/securecoder-suppress` (v1.1.0)
+
+Marks findings as false positives — the source of truth for what `/securecoder-fix`, `/securecoder-review`, and `/securecoder-secure` should ignore. Read-only in `show` modes; mutates `.securecoder/suppressions.json` for `add`, `import`, `remove`, and `expire` modes.
+
+**Command modes:**
+
+```text
+/securecoder-suppress <finding-id> "reason"          shortcut for instance suppression
+/securecoder-suppress import <json>                  batch import (HTML report's export button)
+/securecoder-suppress add "<match-expr>" "reason"    e.g. add "rule=B105 and file_glob=tests/**" "test fixtures"
+/securecoder-suppress show                           list all current suppressions
+/securecoder-suppress show <finding-id>              which entry suppresses a given finding
+/securecoder-suppress show stale                     entries that didn't match anything in last scan
+/securecoder-suppress show expired                   entries past their expires_at
+/securecoder-suppress remove <entry-index>           delete one entry
+/securecoder-suppress expire                         purge entries past expires_at (with confirmation)
+```
+
+Natural-language equivalents work via the agent's interpretation. The eight modes are not separate skills — they're branches inside one SKILL.md.
+
+**What this skill does NOT do:** it does not re-run any scan or compute suppression effects against existing findings. Effects materialize the next time `/securecoder-scan` runs, when `apply_suppressions.py` (§ 3.9) stamps `status: "suppressed"` on matching findings.
+
+## 3.9 Suppression model (v1.1.0)
+
+A separate concern that touches every skill. Marking findings as false positives or known-acceptable so they don't pollute reports and don't get auto-fixed.
+
+### Storage
+
+Team-shared file at `.securecoder/suppressions.json` (checked in alongside `config.json`). Schema v1.0:
+
+```json
+{
+  "schema_version": "1.0",
+  "entries": [
+    {
+      "match": {
+        "id": "5823722d…",
+        "rule": "B105",
+        "file": "tests/fixtures/passwords.py",
+        "file_glob": "tests/**",
+        "framework_ref": "asvs-v5/V1.2.1"
+      },
+      "scope": "project",
+      "reason": "Hardcoded passwords in test fixtures are intentional",
+      "created_at": "2026-05-14T15:30:00Z",
+      "created_by": "krishna@example.com",
+      "expires_at": null
+    }
+  ]
+}
+```
+
+Inside `match`, every populated field is ANDed. Fields: `id` (exact canonical-ID — fragile by design, shifts with line numbers), `rule` (matches `source_rule_id`), `file` (exact path), `file_glob` (gitignore-style glob), `framework_ref` (e.g. `"asvs-v5/V1.2.1"` — matches any of the finding's framework_refs).
+
+### Most-specific-wins resolution
+
+| Specificity score | Match shape |
+|---|---|
+| 0 (most specific) | `id` present |
+| 1 | `rule` + `file` |
+| 2 | `rule` + `file_glob` |
+| 3 | `rule` alone, or `framework_ref` alone |
+| 4 (least specific) | `file_glob` alone |
+
+Among entries at the same specificity, the first-defined wins. The winner's reason becomes the finding's `suppression_reason` field; a `suppressions.json#<index>` pointer becomes its `suppression_match`.
+
+### Expiry
+
+`expires_at` is optional ISO-8601 date. Null = never expires. Past-date entries stay in the file (audit trail) but match-time logic ignores them. `/securecoder-suppress expire` removes them with confirmation. Default new entries have `expires_at: null`; teams that prefer expiry-by-default set `config.suppression_defaults.expires_after_days`.
+
+### Cross-skill integration
+
+- **`/securecoder-scan`** runs `apply_suppressions.py` as Phase A's final step (after merge, before manifest). Findings matching a suppression get `status: "suppressed"`, `suppression_reason`, `suppression_match`.
+- **`/securecoder-fix`** filters out `status: "suppressed"` in its severity-scope step. Fix log captures `editor_skipped_suppressed` for visibility.
+- **`/securecoder-review`** interactive flow inherits the filter via the same finding stream. The pre-commit hook `review_hook.py` reads `.securecoder/suppressions.json` directly and filters tool outputs before computing exit code.
+- **`/securecoder-secure`** inherits through its sub-skills.
+- **`/securecoder-build`** does not see suppressions for v1.1.0.
+- **`/securecoder-advise`** gains new query modes — "show all currently active suppressions" and "why is finding X suppressed?"
+
+### HTML report — UI affordances
+
+- Per-finding action row with three scope buttons: `[ Suppress this instance ]  [ Suppress rule here ]  [ Suppress rule project-wide ]`
+- Inline expand: reason textarea (required), optional expiry date picker, `[ Add to batch ]` and `[ Copy single command ]`
+- Multi-select checkboxes per finding + sticky bar with `[ Select all ]  [ Select all matching filter ]  [ Suppress N selected ]`
+- Cluster view tab — groups by `(rule_id, file_path_prefix)`; prefix discovered heuristically (longest common prefix with 3-finding floor and 80% coverage ceiling). Per-cluster suppress generates pattern-based entries.
+- Staging tray sticky banner: "N suppressions staged. [Export to agent] [Clear] [Review]" — localStorage-persisted per run
+- Export-to-agent produces `/securecoder-suppress import [{...}, ...]` (clipboard-copied with confirmation toast)
+- Show-suppressed toggle reveals dimmed suppressed findings inline
+- Severity-floor advisory banner when one severity dominates (>1000 findings of a single severity)
+- Suppressions section at bottom listing every active entry with reason / created_at / created_by / expires_at, click-through to "show findings this matched"
+- Virtualized rendering (plain JS, ~100 LOC) keeps DOM lightweight for 2000+ findings
+
+### Manifest additions
+
+```json
+{
+  "totals": {
+    "findings": 2047,
+    "findings_active": 800,
+    "findings_suppressed": 1247
+  },
+  "suppressed_by_entry": {
+    "0": 1247,
+    "1": 0,
+    "2": 18
+  }
+}
+```
+
+`suppressed_by_entry` maps suppressions.json entry index → count of findings caught this run. Entries with 0 count are stale candidates surfaced by the report banner and `/securecoder-suppress show stale`.
+
+### What's intentionally NOT in v1.1.0
+
+- **Source-code comment annotations** (e.g., `# securecoder: ignore`). Config-file model is source of truth; in-source annotations duplicate without adding meaningful value.
+- **Sampling-assisted review** of large clusters. The cluster view's "expand to see 3 samples" covers most of the value.
+- **`scope: "review-only"`** (suppress in `/securecoder-review` but not in full scans). Single global scope keeps the model simple.
+- **ML-assisted false-positive prediction.** Needs training data not yet available.
+
 ## 4. Findings Schema
 
 JSONL — one finding per line. Schema version 1.0.

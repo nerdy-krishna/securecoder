@@ -100,6 +100,30 @@ Inter-skill communication is filesystem-only (run dirs, config files, cache). No
 72. As a developer running the skill on a repo without git, I want the warning to be informational rather than a hard fail, so I can still scan and fix.
 73. As a developer extending the skill, I want a documented `findings.jsonl` schema, so I can write my own tooling against it.
 
+### v1.1.0 — false-positive suppression
+
+74. As a developer reading a scan report, I want to mark a specific finding as a false positive so it doesn't get fixed by `/securecoder-fix`.
+75. As a developer reviewing 2,000 medium findings, I want to triage by pattern (rule + path prefix) instead of one-by-one, so I can clear noise efficiently.
+76. As a team lead, I want suppressions to be checked into the repo so the whole team agrees on what's a false positive.
+77. As an auditor, I want every suppression to have a reason field so a future maintainer can understand the call.
+78. As a developer with a known issue I'll fix later, I want to set an expiry date on a suppression so it auto-reactivates.
+79. As a developer reading the HTML report, I want to click "Suppress" right on a finding card without leaving the page or running another command.
+80. As a developer working through a long report, I want to multi-select findings and suppress them as a batch with one reason.
+81. As a developer with thousands of similar findings, I want a cluster view that groups them by rule and path prefix so I can suppress whole clusters in one click.
+82. As a developer triaging the report over multiple sittings, I want my "staged" suppressions to persist across browser reloads so I don't lose progress.
+83. As a developer pasting a suppression batch into my agent, I want the agent to validate each entry, show me a summary, and append to suppressions.json without overwriting team-mates' entries.
+84. As a security engineer, I want suppressed findings to remain in `findings.jsonl` (with `status: "suppressed"`) so I can audit what was hidden and why, not just what was active.
+85. As a developer rolling back a suppression decision, I want a `/securecoder-suppress remove` action that drops a specific entry without affecting others.
+86. As a developer running a scan months later, I want stale suppressions (those that didn't match anything this run) flagged so I can clean them up.
+87. As a developer who is about to push code, I want the pre-commit hook to honor suppressions so it doesn't block on findings the team has already agreed to ignore.
+88. As a developer asking the advisor, I want `/securecoder-advise` to tell me which suppression entry caused a specific status, so I can understand the audit trail.
+89. As a developer comparing scans over time, I want the manifest to track how many findings each suppression entry caught, so I can identify load-bearing entries vs decorative ones.
+90. As a developer running a fix run with suppressions in place, I want `editor_skipped_suppressed` to appear in my fix log distinctly from `editor_skipped` (which means I manually skipped a finding in interactive mode).
+91. As a developer on a noisy SAST tool result set, I want a severity-floor advisory banner in the report so I'm prompted to raise my floor instead of suppressing each finding.
+92. As a developer at a repo with no `suppressions.json` yet, I want `/securecoder-scan` and the fix family to work fine with zero suppressions — the feature should be opt-in, not opt-out.
+93. As a developer with a finding ID I want to look up later, I want suppression entries to include `created_at` and `created_by` for accountability.
+94. As a developer extending securecoder, I want the suppression schema to support a `framework_ref` matcher so I can say "suppress all V1.2.1 findings in legacy/" with one entry.
+
 ## Implementation Decisions
 
 ### Architectural
