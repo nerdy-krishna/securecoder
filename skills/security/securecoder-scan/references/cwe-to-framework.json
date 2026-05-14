@@ -1,0 +1,298 @@
+{
+  "_about": "CWE → framework controls lookup table used by the SAST normalizer to enrich findings with framework_refs. Starter set covering the most common CWEs Semgrep emits for OWASP Top 10 categories. Refine over time as the curated mapping becomes more comprehensive. Schema: {<CWE-id>: {name: str, framework_refs: [{framework, control|category}]}}.",
+  "_schema_version": "1.0",
+
+  "CWE-22": {
+    "name": "Path Traversal",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.3"},
+      {"framework": "asvs-v5", "control": "V5.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A01"}
+    ]
+  },
+  "CWE-23": {
+    "name": "Relative Path Traversal",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V5.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A01"}
+    ]
+  },
+  "CWE-77": {
+    "name": "Command Injection",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.6"},
+      {"framework": "asvs-v5", "control": "V1.2.7"},
+      {"framework": "owasp-top-10-2021", "category": "A03"}
+    ]
+  },
+  "CWE-78": {
+    "name": "OS Command Injection",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.6"},
+      {"framework": "asvs-v5", "control": "V1.2.7"},
+      {"framework": "owasp-top-10-2021", "category": "A03"}
+    ]
+  },
+  "CWE-79": {
+    "name": "Cross-Site Scripting (XSS)",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.4"},
+      {"framework": "asvs-v5", "control": "V3.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A03"}
+    ]
+  },
+  "CWE-89": {
+    "name": "SQL Injection",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.1"},
+      {"framework": "asvs-v5", "control": "V1.2.2"},
+      {"framework": "owasp-top-10-2021", "category": "A03"}
+    ]
+  },
+  "CWE-90": {
+    "name": "LDAP Injection",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.5"},
+      {"framework": "owasp-top-10-2021", "category": "A03"}
+    ]
+  },
+  "CWE-94": {
+    "name": "Code Injection",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.8"},
+      {"framework": "asvs-v5", "control": "V15.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A03"}
+    ]
+  },
+  "CWE-117": {
+    "name": "Improper Output Neutralization for Logs (Log Injection)",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V16.3.1"},
+      {"framework": "owasp-top-10-2021", "category": "A09"}
+    ]
+  },
+  "CWE-200": {
+    "name": "Information Exposure",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V14.4.1"},
+      {"framework": "owasp-top-10-2021", "category": "A04"}
+    ]
+  },
+  "CWE-209": {
+    "name": "Information Exposure Through Error Messages",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V16.4.1"},
+      {"framework": "owasp-top-10-2021", "category": "A09"}
+    ]
+  },
+  "CWE-256": {
+    "name": "Plaintext Storage of Password",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V11.6.1"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-259": {
+    "name": "Use of Hardcoded Password",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V11.6.1"},
+      {"framework": "asvs-v5", "control": "V13.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A07"}
+    ]
+  },
+  "CWE-285": {
+    "name": "Improper Authorization",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V8.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A01"}
+    ]
+  },
+  "CWE-287": {
+    "name": "Improper Authentication",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V6.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A07"}
+    ]
+  },
+  "CWE-295": {
+    "name": "Improper Certificate Validation",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V12.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-310": {
+    "name": "Cryptographic Issues",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V11.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-327": {
+    "name": "Use of Broken or Risky Cryptographic Algorithm",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V11.1.1"},
+      {"framework": "asvs-v5", "control": "V11.1.2"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-328": {
+    "name": "Use of Weak Hash",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V11.4.1"},
+      {"framework": "asvs-v5", "control": "V11.4.2"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-329": {
+    "name": "Generation of Predictable IV",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V11.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-330": {
+    "name": "Use of Insufficiently Random Values",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V11.5.1"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-352": {
+    "name": "Cross-Site Request Forgery (CSRF)",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V4.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A01"}
+    ]
+  },
+  "CWE-377": {
+    "name": "Insecure Temporary File",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V5.4.1"},
+      {"framework": "owasp-top-10-2021", "category": "A04"}
+    ]
+  },
+  "CWE-400": {
+    "name": "Uncontrolled Resource Consumption",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V2.5.1"},
+      {"framework": "owasp-top-10-2021", "category": "A04"}
+    ]
+  },
+  "CWE-434": {
+    "name": "Unrestricted Upload of File with Dangerous Type",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V5.5.1"},
+      {"framework": "owasp-top-10-2021", "category": "A04"}
+    ]
+  },
+  "CWE-502": {
+    "name": "Deserialization of Untrusted Data",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.8"},
+      {"framework": "asvs-v5", "control": "V15.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A08"}
+    ]
+  },
+  "CWE-601": {
+    "name": "Open Redirect",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V3.4.1"},
+      {"framework": "owasp-top-10-2021", "category": "A01"}
+    ]
+  },
+  "CWE-611": {
+    "name": "XML External Entity (XXE)",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V5.5.2"},
+      {"framework": "owasp-top-10-2021", "category": "A05"}
+    ]
+  },
+  "CWE-614": {
+    "name": "Sensitive Cookie Without Secure Flag",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V7.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-643": {
+    "name": "XPath Injection",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.5"},
+      {"framework": "owasp-top-10-2021", "category": "A03"}
+    ]
+  },
+  "CWE-732": {
+    "name": "Incorrect Permission Assignment",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V5.4.2"},
+      {"framework": "asvs-v5", "control": "V13.1.2"},
+      {"framework": "owasp-top-10-2021", "category": "A05"}
+    ]
+  },
+  "CWE-770": {
+    "name": "Allocation of Resources Without Limits",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V2.5.2"},
+      {"framework": "owasp-top-10-2021", "category": "A04"}
+    ]
+  },
+  "CWE-798": {
+    "name": "Use of Hardcoded Credentials",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V11.6.1"},
+      {"framework": "asvs-v5", "control": "V14.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A07"}
+    ]
+  },
+  "CWE-862": {
+    "name": "Missing Authorization",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V8.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A01"}
+    ]
+  },
+  "CWE-863": {
+    "name": "Incorrect Authorization",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V8.2.1"},
+      {"framework": "owasp-top-10-2021", "category": "A01"}
+    ]
+  },
+  "CWE-915": {
+    "name": "Mass Assignment / Improperly Controlled Modification of Dynamically-Determined Object Attributes",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V2.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A08"}
+    ]
+  },
+  "CWE-918": {
+    "name": "Server-Side Request Forgery (SSRF)",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V1.2.11"},
+      {"framework": "asvs-v5", "control": "V12.3.1"},
+      {"framework": "owasp-top-10-2021", "category": "A10"}
+    ]
+  },
+  "CWE-1004": {
+    "name": "Sensitive Cookie Without HttpOnly Flag",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V7.2.2"},
+      {"framework": "owasp-top-10-2021", "category": "A02"}
+    ]
+  },
+  "CWE-1021": {
+    "name": "Improper Restriction of Rendered UI Layers / Clickjacking",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V3.3.1"},
+      {"framework": "owasp-top-10-2021", "category": "A05"}
+    ]
+  },
+  "CWE-1188": {
+    "name": "Insecure Default Initialization of Resource",
+    "framework_refs": [
+      {"framework": "asvs-v5", "control": "V13.1.1"},
+      {"framework": "owasp-top-10-2021", "category": "A05"}
+    ]
+  }
+}
