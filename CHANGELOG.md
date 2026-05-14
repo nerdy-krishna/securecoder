@@ -4,6 +4,23 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-14
+
+`/securecoder-build` becomes functional. The skill emits a persistent secure-build policy block into the chat session that supervises every subsequent code-producing task. Optional minimal bootstrap for empty repos. ASVS-only by default.
+
+### Added
+- **`/securecoder-build` persistent policy block** — emitted once to chat, the host agent's context retention keeps it alive across turns. Pre-task / post-task protocol with a SATISFIED / PARTIAL / UNKNOWN / N/A classification rubric. Escalation rule for when a control conflicts with what the user asked for. Adjunct hint to run `/securecoder-review` after substantive changes.
+- **"Controls applied" reporting template** that the agent appends to every code-producing response — verbatim control IDs, classification, one-line interpretation.
+- **Optional minimal bootstrap** for empty repos. Generates `.securecoder/config.json`, `.gitignore`, `.env.example`, and installs the pre-commit hook from `/securecoder-review`. Deliberately minimal — does NOT generate per-stack scaffolds (FastAPI app structure, etc.), since the agent's general knowledge plus the ASVS reference is sufficient for one-off tasks.
+- **Explicit + implicit deactivation.** `end secure build mode` / `/securecoder-build --end` deactivates explicitly; long-session context eviction deactivates implicitly. No on-disk state to clean up either way.
+
+### Compatibility
+- Requires ASVS markdown cached at `~/.cache/securecoder/rules/frameworks/asvs/<sha>/`. The skill fetches it on first use if missing (same fetch flow as `/securecoder-scan` Phase B.1).
+- Offline mode works with reduced grounding — the agent still applies the protocol but can't read chapter source verbatim.
+
+### HITL note
+- The policy block wording is high-leverage. Future edits to this skill's SKILL.md should go through manual review before merge — the literal text shapes every agent response for the rest of the user's session.
+
 ## [0.9.0] — 2026-05-14
 
 `/securecoder-review` becomes functional. Diff-scoped security review — SAST + scoped LLM compliance on changed hunks only. Cost proportional to diff size, not repo size. Optional pre-commit hook installation for SAST-only blocking-mode in `git`'s shell context.
@@ -190,7 +207,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.10.0
 [0.9.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.9.0
 [0.8.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.8.0
 [0.7.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.7.0
