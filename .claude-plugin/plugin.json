@@ -7,6 +7,7 @@
     "./skills/security/securecoder-secure",
     "./skills/security/securecoder-review",
     "./skills/security/securecoder-build",
-    "./skills/security/securecoder-advise"
+    "./skills/security/securecoder-advise",
+    "./skills/security/securecoder-suppress"
   ]
 }
