@@ -194,6 +194,7 @@ The two projects share design intent but have **no runtime dependency on each ot
 - [`docs/prd.md`](docs/prd.md) — user-story-driven requirements
 - [`docs/issues/`](docs/issues/) — 14 implementation slices, dependency-ordered
 - [`docs/guides/`](docs/guides/) — usage walkthroughs and per-skill deep dives
+- [`docs/roadmap.md`](docs/roadmap.md) — what's planned for v1.2.0 and beyond
 - [`CHANGELOG.md`](CHANGELOG.md) — full release history from v0.1.0 onwards
 
 Contributions welcome. The simplest path:
