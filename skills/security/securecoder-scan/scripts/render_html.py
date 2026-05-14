@@ -215,6 +215,179 @@ CSS = """
   .hidden { display: none !important; }
   footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border);
            color: var(--fg-mute); font-size: 12px; }
+
+  /* ─── Suppression UI (v1.1.0) ─── */
+  .multiselect-checkbox {
+    margin-right: 8px;
+    transform: scale(1.15);
+    cursor: pointer;
+  }
+  .multiselect-bar {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 16px;
+    margin: 12px 0;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .multiselect-bar.active { display: flex; }
+  .multiselect-bar .count {
+    font-weight: 600;
+  }
+  .suppress-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 8px;
+    margin-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  .suppress-btn {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+  }
+  .suppress-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .suppress-form {
+    margin-top: 10px;
+    padding: 10px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: none;
+    gap: 8px;
+    flex-direction: column;
+  }
+  .suppress-form.open { display: flex; }
+  .suppress-form textarea {
+    background: var(--bg-card);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font: inherit;
+    min-height: 50px;
+    resize: vertical;
+  }
+  .suppress-form .form-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .suppress-form input[type="date"] {
+    background: var(--bg-card);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font: inherit;
+  }
+  .suppress-form .submit-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 500;
+  }
+  .suppress-form .submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .staging-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border-top: 2px solid var(--accent);
+    padding: 12px 24px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    z-index: 100;
+  }
+  .staging-banner.visible { display: flex; }
+  .staging-banner .count {
+    font-weight: 600;
+  }
+  .staging-banner button {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font: inherit;
+  }
+  .staging-banner button.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: var(--good);
+    color: white;
+    padding: 12px 18px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.2s;
+    font-size: 13px;
+  }
+  .toast.show { opacity: 1; }
+  .staging-review {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 150;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .staging-review.open { display: flex; }
+  .staging-review .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-width: 800px;
+    width: 92%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .staging-review .entry {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .staging-review .entry:last-child { border: 0; }
+  .staging-review .entry-match {
+    font-family: SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    color: var(--fg-mute);
+  }
+  body.has-staging-banner { padding-bottom: 80px; }
 """
 
 
@@ -269,6 +442,254 @@ JS = """
   srcSel.addEventListener('change', refresh);
   fwSel.addEventListener('change', refresh);
   search.addEventListener('input', refresh);
+
+  // ─── Suppression UI (v1.1.0) ──────────────────────────────────────
+  var RUN_ID = document.body.getAttribute('data-run-id') || '';
+  var STORAGE_KEY = 'securecoder.staging.' + RUN_ID;
+
+  function loadStaged() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function saveStaged(list) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+    catch (e) {}
+  }
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function() { t.classList.remove('show'); }, 2200);
+  }
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function() { showToast('Command copied to clipboard'); },
+        function() { fallbackCopy(text); }
+      );
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Command copied'); }
+    catch (e) { showToast('Copy failed — see Review for the command'); }
+    document.body.removeChild(ta);
+  }
+  function generateCommand(entries) {
+    return '/securecoder-suppress import ' + JSON.stringify(entries);
+  }
+
+  // Build a suppression entry from a finding card + scope
+  function buildEntry(findingEl, scope, reason, expiresAt) {
+    var id = findingEl.getAttribute('data-finding-id') || '';
+    var rule = findingEl.getAttribute('data-rule') || '';
+    var file = findingEl.getAttribute('data-file') || '';
+    var match = {};
+    if (scope === 'instance' && id) match.id = id;
+    else if (scope === 'rule-here' && rule && file) {
+      match.rule = rule;
+      // Use the file's directory as a glob — single-file matches are usually
+      // by id; rule-here implies "this rule in this file's neighborhood"
+      var slash = file.lastIndexOf('/');
+      match.file_glob = slash > 0 ? file.substring(0, slash) + '/**' : file;
+    } else if (scope === 'rule-global' && rule) {
+      match.rule = rule;
+    }
+    var entry = { match: match, scope: 'project', reason: reason };
+    if (expiresAt) entry.expires_at = expiresAt;
+    return entry;
+  }
+
+  var stagedList = loadStaged();
+  var banner = document.getElementById('staging-banner');
+  var bannerCount = document.getElementById('staging-count');
+  var reviewModal = document.getElementById('staging-review');
+  var reviewBody = document.getElementById('staging-review-body');
+
+  function updateBanner() {
+    var n = stagedList.length;
+    if (n > 0) {
+      banner.classList.add('visible');
+      document.body.classList.add('has-staging-banner');
+      bannerCount.textContent = n;
+    } else {
+      banner.classList.remove('visible');
+      document.body.classList.remove('has-staging-banner');
+    }
+  }
+  function stageEntry(entry) {
+    stagedList.push(entry);
+    saveStaged(stagedList);
+    updateBanner();
+  }
+  function exportToAgent() {
+    if (stagedList.length === 0) {
+      showToast('Nothing staged');
+      return;
+    }
+    copyToClipboard(generateCommand(stagedList));
+  }
+  function clearStaging() {
+    if (stagedList.length === 0) return;
+    if (confirm('Clear all ' + stagedList.length + ' staged suppression(s)?')) {
+      stagedList = [];
+      saveStaged(stagedList);
+      updateBanner();
+    }
+  }
+  function openReview() {
+    reviewBody.innerHTML = '';
+    if (stagedList.length === 0) {
+      reviewBody.innerHTML = '<p>Nothing staged.</p>';
+    } else {
+      stagedList.forEach(function(e, i) {
+        var div = document.createElement('div');
+        div.className = 'entry';
+        var matchStr = Object.keys(e.match || {}).map(function(k) {
+          return k + '=' + JSON.stringify(e.match[k]);
+        }).join(' AND ');
+        div.innerHTML =
+          '<div><div class="entry-match">' + matchStr + '</div>' +
+          '<div>' + (e.reason || '(no reason)') + '</div></div>';
+        var rm = document.createElement('button');
+        rm.textContent = 'Remove';
+        rm.onclick = function() {
+          stagedList.splice(i, 1);
+          saveStaged(stagedList);
+          updateBanner();
+          openReview();
+        };
+        div.appendChild(rm);
+        reviewBody.appendChild(div);
+      });
+    }
+    reviewModal.classList.add('open');
+  }
+  function closeReview() {
+    reviewModal.classList.remove('open');
+  }
+
+  // Wire up per-finding suppress buttons
+  findings.forEach(function(findingEl) {
+    var actions = findingEl.querySelectorAll('.suppress-btn');
+    var form = findingEl.querySelector('.suppress-form');
+    if (!form) return;
+    var reasonInput = form.querySelector('textarea');
+    var expiresInput = form.querySelector('input[type="date"]');
+    var addBtn = form.querySelector('.add-to-batch');
+    var copyBtn = form.querySelector('.copy-single');
+    var currentScope = 'instance';
+
+    actions.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        currentScope = btn.getAttribute('data-scope') || 'instance';
+        form.classList.add('open');
+        reasonInput.focus();
+      });
+    });
+    function buildCurrentEntry() {
+      var reason = (reasonInput.value || '').trim();
+      if (!reason) {
+        showToast('A reason is required');
+        reasonInput.focus();
+        return null;
+      }
+      return buildEntry(findingEl, currentScope, reason, expiresInput.value || null);
+    }
+    addBtn.addEventListener('click', function() {
+      var e = buildCurrentEntry();
+      if (!e) return;
+      stageEntry(e);
+      showToast('Staged. ' + stagedList.length + ' staged.');
+      reasonInput.value = '';
+      form.classList.remove('open');
+    });
+    copyBtn.addEventListener('click', function() {
+      var e = buildCurrentEntry();
+      if (!e) return;
+      copyToClipboard(generateCommand([e]));
+      reasonInput.value = '';
+      form.classList.remove('open');
+    });
+  });
+
+  // Multi-select
+  var selectedSet = new Set();
+  var multiBar = document.getElementById('multiselect-bar');
+  var multiCount = document.getElementById('multiselect-count');
+  function updateMultiselectBar() {
+    if (selectedSet.size > 0) {
+      multiBar.classList.add('active');
+      multiCount.textContent = selectedSet.size;
+    } else {
+      multiBar.classList.remove('active');
+    }
+  }
+  document.querySelectorAll('.multiselect-checkbox').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      var id = cb.getAttribute('data-finding-id');
+      if (cb.checked) selectedSet.add(id);
+      else selectedSet.delete(id);
+      updateMultiselectBar();
+    });
+  });
+  document.getElementById('btn-select-all').addEventListener('click', function() {
+    findings.forEach(function(f) {
+      var cb = f.querySelector('.multiselect-checkbox');
+      var id = f.getAttribute('data-finding-id');
+      if (cb && id) { cb.checked = true; selectedSet.add(id); }
+    });
+    updateMultiselectBar();
+  });
+  document.getElementById('btn-select-filtered').addEventListener('click', function() {
+    findings.forEach(function(f) {
+      if (f.classList.contains('hidden')) return;
+      var cb = f.querySelector('.multiselect-checkbox');
+      var id = f.getAttribute('data-finding-id');
+      if (cb && id) { cb.checked = true; selectedSet.add(id); }
+    });
+    updateMultiselectBar();
+  });
+  document.getElementById('btn-clear-selection').addEventListener('click', function() {
+    selectedSet.clear();
+    document.querySelectorAll('.multiselect-checkbox').forEach(function(cb) { cb.checked = false; });
+    updateMultiselectBar();
+  });
+  document.getElementById('btn-suppress-selected').addEventListener('click', function() {
+    if (selectedSet.size === 0) return;
+    var reason = prompt('Reason for suppressing ' + selectedSet.size + ' finding(s)?');
+    if (!reason || !reason.trim()) return;
+    var entries = [];
+    findings.forEach(function(f) {
+      var id = f.getAttribute('data-finding-id');
+      if (selectedSet.has(id)) {
+        entries.push({ match: { id: id }, scope: 'project', reason: reason.trim() });
+      }
+    });
+    entries.forEach(stageEntry);
+    showToast('Staged ' + entries.length + ' suppressions.');
+    selectedSet.clear();
+    document.querySelectorAll('.multiselect-checkbox').forEach(function(cb) { cb.checked = false; });
+    updateMultiselectBar();
+  });
+
+  // Banner buttons
+  document.getElementById('btn-export-staging').addEventListener('click', exportToAgent);
+  document.getElementById('btn-clear-staging').addEventListener('click', clearStaging);
+  document.getElementById('btn-review-staging').addEventListener('click', openReview);
+  document.getElementById('btn-close-review').addEventListener('click', closeReview);
+  reviewModal.addEventListener('click', function(e) {
+    if (e.target === reviewModal) closeReview();
+  });
+
+  updateBanner();
 })();
 """
 
@@ -482,13 +903,21 @@ def render_finding(f: dict) -> str:
         if remediation else ""
     )
 
+    fid = f.get("id") or ""
+    rule_id = f.get("source_rule_id", "")
+    file_path = f.get("file", "")
+
     return f"""
   <article class="finding"
     data-severity="{esc(severity)}"
     data-source="{esc(source)}"
     data-frameworks="{esc(framework_attr)}"
-    data-text="{esc(haystack)}">
+    data-text="{esc(haystack)}"
+    data-finding-id="{esc(fid)}"
+    data-rule="{esc(rule_id)}"
+    data-file="{esc(file_path)}">
     <div class="finding-header">
+      <input type="checkbox" class="multiselect-checkbox" data-finding-id="{esc(fid)}" title="Select for batch suppress" />
       <span class="badge {esc(severity)}">{esc(SEV_LABELS.get(severity, severity))}</span>
       <span class="finding-title">{esc(title)}</span>
       <span class="finding-loc">{esc(loc)}</span>
@@ -500,11 +929,24 @@ def render_finding(f: dict) -> str:
       {evidence_html}
       {remediation_html}
       <p class="meta-line">
-        Rule: <code>{esc(f.get('source_rule_id', ''))}</code>
-        &middot; ID: <code>{esc((f.get('id') or '')[:12])}…</code>
+        Rule: <code>{esc(rule_id)}</code>
+        &middot; ID: <code>{esc(fid[:12])}…</code>
         &middot; source: <code>{esc(source)}</code>
         &middot; confidence: <code>{esc(f.get('confidence', '?'))}</code>
       </p>
+      <div class="suppress-actions">
+        <button class="suppress-btn" data-scope="instance" title="Suppress just this canonical-ID match">Suppress this instance</button>
+        <button class="suppress-btn" data-scope="rule-here" title="Suppress {esc(rule_id)} in this file's directory">Suppress rule here</button>
+        <button class="suppress-btn" data-scope="rule-global" title="Suppress {esc(rule_id)} project-wide">Suppress rule project-wide</button>
+      </div>
+      <div class="suppress-form" role="region" aria-label="Suppression form">
+        <textarea placeholder="Why is this a false positive? Required." rows="2"></textarea>
+        <div class="form-row">
+          <label>Expires (optional): <input type="date" /></label>
+          <button class="submit-btn add-to-batch">Add to batch</button>
+          <button class="submit-btn copy-single">Copy single command</button>
+        </div>
+      </div>
     </div>
   </article>
 """
@@ -615,7 +1057,7 @@ def render(findings: list, manifest: dict) -> str:
   <title>{esc(title)}</title>
   <style>{CSS}</style>
 </head>
-<body>
+<body data-run-id="{esc(run_id)}">
   <header>
     <h1>securecoder scan report</h1>
     <div class="meta meta-row">
@@ -661,8 +1103,37 @@ def render(findings: list, manifest: dict) -> str:
     <p class="result-count">Showing <span id="visible-count">{len(findings)}</span> of {len(findings)} finding{'s' if len(findings) != 1 else ''}</p>
   </section>
 
+  <div id="multiselect-bar" class="multiselect-bar">
+    <span><span id="multiselect-count" class="count">0</span> finding(s) selected</span>
+    <button id="btn-select-all" title="Select every finding in this report">Select all</button>
+    <button id="btn-select-filtered" title="Select only currently-visible findings (filter-aware)">Select all matching filter</button>
+    <button id="btn-suppress-selected" title="Stage suppression entries for the selected findings">Suppress N selected</button>
+    <button id="btn-clear-selection">Clear selection</button>
+  </div>
+
 {render_findings_section(findings)}
 {render_manifest_footer(manifest)}
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="staging-banner" class="staging-banner" role="region" aria-label="Suppression staging tray">
+    <span><span id="staging-count" class="count">0</span> suppression(s) staged for this run</span>
+    <div>
+      <button id="btn-review-staging">Review</button>
+      <button id="btn-clear-staging">Clear</button>
+      <button id="btn-export-staging" class="primary">Export to agent</button>
+    </div>
+  </div>
+
+  <div id="staging-review" class="staging-review" role="dialog" aria-modal="true" aria-label="Staged suppressions">
+    <div class="modal">
+      <h2 style="margin-top: 0">Staged suppressions</h2>
+      <div id="staging-review-body"></div>
+      <div style="margin-top: 16px; text-align: right">
+        <button id="btn-close-review">Close</button>
+      </div>
+    </div>
+  </div>
 
   <footer>
     Generated by <a href="https://github.com/nerdy-krishna/securecoder">securecoder</a>.
