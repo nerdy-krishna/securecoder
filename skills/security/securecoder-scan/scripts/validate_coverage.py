@@ -31,7 +31,11 @@ from pathlib import Path
 CONTROL_TOKEN_RE = re.compile(r"\*\*(\d+\.\d+\.\d+)\*\*")
 # Also matches bare X.Y.Z when used in LLM response coverage matrix
 # (model often emits `V1.1.1` or `1.1.1` rather than `**1.1.1**`).
-RESPONSE_CONTROL_RE = re.compile(r"\b(?:V\d+\.)?(\d+\.\d+\.\d+)\b")
+# Note: ASVS uses `V<chapter>.<section>.<control>` where the V prefix
+# applies to the whole control id, not just the leading number — so we
+# allow an optional `V` (no following digits) immediately before the
+# X.Y.Z capture.
+RESPONSE_CONTROL_RE = re.compile(r"\bV?(\d+\.\d+\.\d+)\b")
 
 
 def extract_chapter_controls(chapter_md: str) -> list:

@@ -4,7 +4,7 @@ An installable collection of AI-agent skills that audits, fixes, and supervises 
 
 securecoder is **fully agent-driven**. No server, no daemon, no API keys. It fetches SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and OWASP framework markdown (ASVS, MASVS, Cheatsheets, Proactive Controls) at runtime on your machine — nothing is sent to a third party by the skill itself.
 
-> **Status:** v0.12.0 — all seven skills functional, multi-framework compliance (ASVS v5, MASVS, Proactive Controls, Cheatsheets reference), and CI auto-bumper for pinned upstreams. v1.0.0 stabilization release follows.
+> **Status:** v1.0.0 — stable initial release. All seven skills functional, multi-framework compliance (ASVS v5, MASVS, Proactive Controls, Cheatsheets reference), and CI bumper template for pinned upstreams.
 
 ## Quickstart
 

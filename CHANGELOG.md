@@ -4,6 +4,50 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-05-14
+
+The stable initial release. All seven skills functional, all 10 pinned upstreams documented, multi-framework compliance, CI bumper template, and end-to-end smoke tests across every helper script.
+
+### Stabilization
+- **All seven skills functional and shipped** since v0.11.0; v0.12.0 added the multi-framework breadth on top.
+- **Smoke-tested every helper script** end-to-end with synthetic inputs in the v1.0.0 release commit. Each Python helper parses cleanly under Python 3.9+. Each normalizer produces v1.0-schema-conformant findings. Each renderer produces the documented output shape.
+- **One fix during stabilization:** `validate_coverage.py`'s regex was correctly catching chapter-source control IDs (`**1.1.1**`) but missing the V-prefixed form in LLM responses (`V1.1.1`). The regex now allows `V` as a bare prefix on the control ID rather than treating it as needing its own digit suffix. This is a bug fix; no schema changes.
+- **CHANGELOG complete back to v0.1.0** documenting every behavior decision and every pinned upstream version bump.
+
+### Where to start
+1. Install: `npx skills@latest add nerdy-krishna/securecoder`.
+2. From any project: `/securecoder-setup`.
+3. Audit: `/securecoder-scan` (SAST + ASVS).
+4. Remediate: `/securecoder-fix` (or `/securecoder-secure` for the whole pipeline).
+5. Pre-commit gate: `/securecoder-review` (install the hook for SAST-only blocking).
+6. While coding: `/securecoder-build` to wrap the session in ASVS supervision.
+7. Q&A: `/securecoder-advise`.
+
+### The skill set, final shape
+- `/securecoder-setup` — config wizard
+- `/securecoder-scan` — SAST (Semgrep, Bandit, Gitleaks, OSV-scanner) + LLM compliance (ASVS v5, MASVS, Proactive Controls) + markdown + HTML report + cross-run trend
+- `/securecoder-fix` — SAST and compliance findings with full safety loop + restore
+- `/securecoder-secure` — easy-button 4-phase pipeline with one approval
+- `/securecoder-review` — diff-scoped pre-commit gate + hook installer
+- `/securecoder-build` — persistent ASVS supervision mode
+- `/securecoder-advise` — grounded Q&A
+
+### Pinned upstreams (current as of v1.0.0)
+- Semgrep: `1.91.0`
+- Bandit: `1.7.10`
+- Gitleaks: `8.18.4`
+- OSV-scanner: `1.9.2`
+- `returntocorp/semgrep-rules`: branch `main`, content-addressed by SHA
+- `OWASP/ASVS`: branch `master`, content-addressed by SHA
+- `OWASP/owasp-masvs`: branch `master`, content-addressed by SHA
+- `OWASP/www-project-proactive-controls`: branch `master`, content-addressed by SHA
+- `OWASP/CheatSheetSeries`: branch `master`, content-addressed by SHA
+
+### What's NOT in v1.0.0 (deferred)
+- Unit tests for the helper scripts. Manual smoke-testing covered every helper end-to-end before each release. Adding proper pytest suites is the v1.1.0 priority.
+- The CI workflow YAML is shipped as a template at `scripts/ci/pinned-tag-bumps.yml.template` — needs to be moved to `.github/workflows/` and committed with a workflow-scoped token. The pin-checker Python script is fully functional.
+- Windows end-to-end validation. Path handling is implemented but only macOS + Linux validated during development.
+
 ## [0.12.0] — 2026-05-14
 
 Multi-framework compliance and maintenance CI. The compliance pass now extends to MASVS (mobile) and OWASP Proactive Controls; Cheatsheets become available as remediation reference. A GitHub Action checks all pinned upstreams weekly and opens a PR when releases advance.
@@ -245,7 +289,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.0.0
 [0.12.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.12.0
 [0.11.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.11.0
 [0.10.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.10.0
