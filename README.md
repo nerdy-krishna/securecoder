@@ -4,50 +4,182 @@ An installable collection of AI-agent skills that audits, fixes, and supervises 
 
 securecoder is **fully agent-driven**. No server, no daemon, no API keys. It fetches SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and OWASP framework markdown (ASVS, MASVS, Cheatsheets, Proactive Controls) at runtime on your machine — nothing is sent to a third party by the skill itself.
 
-> **Status:** v1.0.0 — stable initial release. All seven skills functional, multi-framework compliance (ASVS v5, MASVS, Proactive Controls, Cheatsheets reference), and CI bumper template for pinned upstreams.
+> **Status:** v1.0.0 — stable initial release. All seven skills functional.
 
 ## Quickstart
+
+Install once:
 
 ```bash
 npx skills@latest add nerdy-krishna/securecoder
 ```
 
-The skills.sh installer will detect every coding agent on your machine and offer to install securecoder into each one. Pick the ones you use.
+The skills.sh installer detects every coding agent on your machine and offers to install securecoder into each one. Pick the ones you use.
 
-Then, from any project you want to secure:
+Then from any project:
+
+```text
+/securecoder-setup       # one-time team config (3 minutes)
+/securecoder-scan        # audit your code
+/securecoder-fix         # remediate findings
+```
+
+That's the minimum path. The other four skills add specific value — see [§ The seven skills](#the-seven-skills) below.
+
+## How the skills chain together
 
 ```
-/securecoder-setup
+                       ┌─────────────────────┐
+                       │  /securecoder-setup │   one-time config
+                       └──────────┬──────────┘
+                                  │ writes .securecoder/config.json
+                                  ▼
+   ┌─────────────────────────────────────────────────────────────────┐
+   │                                                                 │
+   │  Auditing existing code                                         │
+   │  ─────────────────────                                          │
+   │   /securecoder-scan  →  /securecoder-fix  →  /securecoder-scan  │
+   │      (audit)              (remediate)         (verify)          │
+   │                                                                 │
+   │      OR the easy-button equivalent:                             │
+   │   /securecoder-secure   (does all the above in one approval)    │
+   │                                                                 │
+   └─────────────────────────────────────────────────────────────────┘
+
+   ┌─────────────────────────────────────────────────────────────────┐
+   │                                                                 │
+   │  In-flight work / new projects                                  │
+   │  ─────────────────────────────                                  │
+   │   /securecoder-build  ─→ (you work with the agent, supervised)  │
+   │   /securecoder-review ←─    pre-commit gate on each change set  │
+   │                                                                 │
+   └─────────────────────────────────────────────────────────────────┘
+
+   ┌─────────────────────────────────────────────────────────────────┐
+   │                                                                 │
+   │  Q&A and learning                                               │
+   │  ───────────────                                                │
+   │   /securecoder-advise   any time, grounded in framework docs    │
+   │                                                                 │
+   └─────────────────────────────────────────────────────────────────┘
 ```
-
-Walk through the 8-question wizard. You're done — securecoder's other skills now have a configuration to read.
-
-A "first scan in 5 minutes" walkthrough lands once `/securecoder-scan` ships in v0.2.0.
 
 ## The seven skills
 
-| Slash command | Purpose | Status |
-| --- | --- | --- |
-| `/securecoder-setup` | One-time team configuration. Writes `.securecoder/config.json`. | **Shipping in v0.1.0.** |
-| `/securecoder-scan` | Audit existing code with SAST tools and/or LLM-driven compliance review. | **v0.4.0 (multi-tool SAST + markdown/HTML reports + cross-run trend); compliance pass in v0.7.0** |
-| `/securecoder-fix` | Remediate findings safely — backup, syntax check, commit-per-fix. | **v0.5.0 (SAST findings + restore); compliance findings in v0.7.0** |
-| `/securecoder-secure` | Easy-button end-to-end pipeline. One approval, runs scan→fix→compliance→fix straight through. | v0.4.0 (slice 09) |
-| `/securecoder-review` | Diff-scoped pre-commit gate. Fast SAST + scoped LLM compliance on staged changes. | v0.5.0 (slice 10) |
-| `/securecoder-build` | Activate persistent ASVS-supervised build mode. The host agent self-checks every output against ASVS controls. | v0.6.0 (slice 11) |
-| `/securecoder-advise` | Q&A grounded in cached OWASP framework markdown. Verbatim citations, no hallucinations. | v0.7.0 (slice 12) |
+| Skill | One-line purpose | When to invoke it | Follow up with |
+| --- | --- | --- | --- |
+| `/securecoder-setup` | Configure frameworks, severity floor, fix scope, push strategy. | Once when adopting securecoder, or when team preferences change. | `/securecoder-scan` |
+| `/securecoder-scan` | Audit your code — SAST (Semgrep, Bandit, Gitleaks, OSV) and/or ASVS/MASVS LLM compliance. | When you want to know what's wrong before changing anything. | `/securecoder-fix` |
+| `/securecoder-fix` | Apply fixes to a previous scan's findings, with full safety loop. | After `/securecoder-scan`, to remediate. | `/securecoder-scan` (verify) |
+| `/securecoder-secure` | Easy-button pipeline: scan → fix → compliance scan → fix → report, one approval. | When you don't want to choose between scan modes — let the pipeline do the right thing. | `/securecoder-review` (next commit) |
+| `/securecoder-review` | Diff-scoped review of staged or branch changes. Pre-commit gate. | Right before you commit / push. | `/securecoder-fix` (if findings) |
+| `/securecoder-build` | Activate persistent ASVS supervision for the rest of the chat session. | When starting new feature work or a fresh project. | `/securecoder-review` (each substantive change) |
+| `/securecoder-advise` | Q&A grounded in cached framework markdown. Verbatim citations. | When you don't understand a finding, want to look up a control, or are weighing a design choice. | (no specific follow-up — read and learn) |
+
+### Example invocations
+
+```text
+# First-time setup
+/securecoder-setup
+
+# Audit a Python repo for SAST + ASVS compliance
+/securecoder-scan
+# At the mode prompt: "Both"
+
+# Apply fixes to the latest scan, critical and high severity only
+/securecoder-fix
+# At the scope prompt: "Critical + High"
+
+# Specific run by id (e.g., to redo a previous fix)
+/securecoder-fix run 20260514T140000Z
+
+# Roll back the last fix run
+/securecoder-fix --restore 20260514T143000Z
+# or natural language:  "undo my last sccap-fix"
+
+# Easy button — entire pipeline, one approval
+/securecoder-secure
+
+# Pre-commit review of staged changes only
+/securecoder-review
+
+# Pre-PR review of your feature branch vs main
+/securecoder-review
+# At the scope prompt: "Branch vs base"
+
+# Install the SAST-only pre-commit hook
+/securecoder-review
+# At the scope prompt: "Install pre-commit hook"
+
+# Activate secure-build mode for the rest of this session
+/securecoder-build
+
+# Ask a security question
+/securecoder-advise "How do I prevent SSRF in this codebase?"
+
+# Look up a specific ASVS control
+/securecoder-advise "Explain ASVS V1.2.1"
+
+# Deep-dive on a specific finding from your last scan
+/securecoder-advise
+# At the mode prompt: "Specific finding deep-dive"
+# Then provide the finding ID prefix
+```
+
+Detailed per-skill guides live at [`docs/guides/per-skill/`](docs/guides/per-skill/).
+
+## Common scenarios
+
+| Scenario | Recommended sequence |
+| --- | --- |
+| **I just inherited a codebase** | `/securecoder-setup` → `/securecoder-secure` → review the `report.html` |
+| **Starting a new project** | `/securecoder-setup` → `/securecoder-build` (then code with the agent) → `/securecoder-review` before each commit |
+| **About to open a PR** | `/securecoder-review` (scope: branch vs base) → `/securecoder-fix` if findings |
+| **Casual learning** | `/securecoder-advise "<question>"` — no setup required if you've run a scan once to populate the framework cache |
+| **Compliance audit deliverable** | `/securecoder-scan` (mode: LLM compliance only) → share the `report.html` and the compliance-posture section |
+| **A finding looks wrong** | `/securecoder-advise` (mode: specific finding deep-dive) — see the verbatim ASVS text + why securecoder flagged it |
+| **Rolling back a bad fix** | `/securecoder-fix --restore <run-id>` |
+
+Full scenario walkthroughs: [`docs/guides/scenarios.md`](docs/guides/scenarios.md).
+
+## What gets installed where
+
+```
+<your project>/
+└── .securecoder/
+    ├── config.json        team-shared (checked in)
+    ├── .gitignore         (auto-generated)
+    ├── runs/<id>/         scan / fix runs (gitignored)
+    └── reviews/<id>/      diff-scoped reviews (gitignored)
+
+<your home cache>/         (~/.cache/securecoder/ on Linux, ~/Library/Caches/securecoder/ on macOS, %LOCALAPPDATA%\securecoder\ on Windows)
+├── tools/
+│   ├── semgrep/           pipped into a private venv
+│   ├── bandit/            ditto
+│   ├── gitleaks/          GitHub release binary
+│   └── osv-scanner/       GitHub release binary
+└── rules/
+    ├── semgrep/<sha>/     returntocorp/semgrep-rules cloned, content-addressed
+    └── frameworks/
+        ├── asvs/<sha>/    OWASP/ASVS cloned, content-addressed
+        ├── masvs/<sha>/
+        └── proactive-controls/<sha>/
+```
+
+The skill **never modifies anything outside `<your project>/.securecoder/` and `<your home cache>/securecoder/`** unless you explicitly run `/securecoder-fix` (or `/securecoder-secure`) which writes to your source files. Even then, every modified file is backed up first.
 
 ## Privacy
 
-securecoder itself **never sends your source code anywhere**. The skill performs these network operations:
+securecoder itself **never sends source code anywhere**. It performs these network operations:
 
-- `git clone` from public OWASP and Semgrep rule repos at pinned tags (no user code)
+- `git clone` over HTTPS against the official OWASP and Semgrep rule repos (and any explicit custom sources)
+- HTTPS POST to `api.osv.dev` with dependency package names + versions (no source code)
 - HTTPS download of Gitleaks and OSV-scanner release binaries from GitHub
-- HTTPS POST to `api.osv.dev` with dependency package names and versions (no source code)
-- `git push` only if you explicitly configure that strategy, to your own remote
+- `git push` only if your configured push strategy says to, and only to your own remote
 
-**LLM calls flow source code to whichever model provider your coding agent uses** — Anthropic, OpenAI, Google, etc. This is your existing relationship with that provider; securecoder doesn't introduce a new vendor. The compliance-scan, fix, build, and review skills inherently include source in prompts.
+**LLM calls send source code to whichever model provider your coding agent uses** — Anthropic, OpenAI, Google, etc. This is your existing relationship with that provider; securecoder doesn't introduce a new vendor. The compliance-scan, fix, build, and review skills inherently include source in prompts.
 
-You can run securecoder offline once tools and rule packs are cached at `~/.cache/securecoder/`.
+You can run securecoder fully offline once tools and rule packs are cached.
 
 ## How it relates to SCCAP
 
@@ -55,21 +187,19 @@ This project distills the OWASP-driven scan/fix workflow from the [SCCAP platfor
 
 The two projects share design intent but have **no runtime dependency on each other**.
 
-## Design
+## Design and contributing
 
-- **Design doc:** [docs/design.md](docs/design.md) — every architectural decision, schema, and protocol.
-- **Product requirements:** [docs/prd.md](docs/prd.md) — user stories, modules, testing scope.
-- **Implementation issues:** [docs/issues/](docs/issues/) — 14 vertical slices, dependency-ordered.
+- [`docs/design.md`](docs/design.md) — every architectural decision, schema, and protocol
+- [`docs/prd.md`](docs/prd.md) — user-story-driven requirements
+- [`docs/issues/`](docs/issues/) — 14 implementation slices, dependency-ordered
+- [`docs/guides/`](docs/guides/) — usage walkthroughs and per-skill deep dives
+- [`CHANGELOG.md`](CHANGELOG.md) — full release history from v0.1.0 onwards
 
-The seventeen-decision grilling session that produced these is summarized in `docs/design.md` § Appendix.
+Contributions welcome. The simplest path:
 
-## Contributing
-
-The project is in active early-stage development. The simplest contribution path:
-
-1. Pick a slice from `docs/issues/` that isn't yet implemented.
-2. Open a PR implementing it against the acceptance criteria listed inline.
-3. The two HITL-tagged slices (07 and 11) need maintainer review before merging.
+1. Pick a slice from `docs/issues/` that lists outstanding test work, or open a discussion for a new feature.
+2. Open a PR with the implementation + tests if applicable.
+3. The two HITL-tagged slices (07 ASVS prompt, 11 build-mode policy) need maintainer review of their literal text since it directly shapes agent behavior.
 
 ## License
 
