@@ -4,7 +4,7 @@ An installable collection of AI-agent skills that audits, fixes, and supervises 
 
 securecoder is **fully agent-driven**. No server, no daemon, no API keys. It fetches SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and OWASP framework markdown (ASVS, MASVS, Cheatsheets, Proactive Controls) at runtime on your machine — nothing is sent to a third party by the skill itself.
 
-> **Status:** v0.7.0 — `/securecoder-setup`, `/securecoder-scan` (full SAST + ASVS v5 compliance + reports + trend), and `/securecoder-fix` (SAST and compliance findings, with safety loop + restore) are functional today. The other four skills ship slice-by-slice. See [docs/issues/](docs/issues/) for the implementation backlog.
+> **Status:** v0.8.0 — `/securecoder-setup`, `/securecoder-scan`, `/securecoder-fix`, and `/securecoder-secure` (4-phase easy-button pipeline with one-approval cost gate) are functional today. `/securecoder-review`, `/securecoder-build`, and `/securecoder-advise` ship in v0.9.0–v0.11.0. See [docs/issues/](docs/issues/) for the implementation backlog.
 
 ## Quickstart
 

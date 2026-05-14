@@ -4,6 +4,21 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-14
+
+`/securecoder-secure` becomes functional. The easy-button skill wires `/securecoder-scan` and `/securecoder-fix` into a 4-phase pipeline: SAST scan → SAST fix → compliance scan → compliance fix. One up-front approval covers the whole pipeline; a 50%-overrun mid-run gate offers a single safety bail.
+
+### Added
+- **`/securecoder-secure` four-phase pipeline** with single approval gate. Mode picker offers `proceed` (full pipeline), `scan-only` (Phases 1 and 3 only, no fixes), and `abort`.
+- **50%-overrun mid-run gate.** After Phase 3 (compliance scan) completes, if actual token usage ≥ 1.5× the pre-flight estimate, the pipeline pauses and asks `continue` / `abort` before Phase 4. Skipped in `scan-only` mode.
+- **Top-level pre-flight safety** — git clean-tree auto-stash, protected-branch auto-branch (no per-phase re-prompts). The easy-button mode doesn't make the user answer the same question twice.
+- **Unified pipeline manifest** at `.securecoder/runs/<pipeline-run-id>/manifest.json` referencing every sub-run id, plus `estimate_vs_actual` token comparison.
+- **Two `--restore`-able fix runs** (SAST fix + compliance fix) — the pipeline doesn't change the rollback story; each fix phase remains independently undoable.
+
+### Compatibility
+- Requires `/securecoder-scan` and `/securecoder-fix` installed alongside (declared in the skill description; the skill fails early with a clear message if either is missing).
+- No new pinned upstreams.
+
 ## [0.7.0] — 2026-05-14
 
 `/securecoder-fix` extends to handle compliance findings produced by the v0.6.0 ASVS pass. The full safety loop applies: backup, syntax check, re-scan with the originating mechanism, automatic rollback on failure. Compliance fixes that the model can't fully resolve in 3 tries land as `editor_failed`; those whose re-verification LLM call fails land as `applied_unverified`.
@@ -159,7 +174,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.8.0
 [0.7.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.7.0
 [0.6.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.6.0
 [0.5.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.5.0
