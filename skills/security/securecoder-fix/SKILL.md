@@ -59,11 +59,12 @@ Present a single-select picker with these options (pre-select `config.default_fi
 
 Record the chosen scope. Filter the findings list:
 
-- Keep `category: "sast"` and `category: "compliance"` findings whose `severity` is in the scope.
+- **Skip findings with `status: "suppressed"`** — they were marked as false positives via `/securecoder-suppress`, the HTML report's suppress UI, or `.securecoder/suppressions.json`. Record them in the fix log with status `editor_skipped_suppressed` so the user sees how many were skipped for this reason, distinct from `editor_skipped` (user manually skipped in interactive mode).
+- Of the remainder, keep `category: "sast"` and `category: "compliance"` findings whose `severity` is in the scope.
 - For findings with `fix_complexity: "high"` or `lines: null`, append to a separate `MANUAL_REVIEW` list (they're recorded in the fix log with status `manual_review_required` but never auto-fixed).
 - Everything else lands in `TO_FIX`.
 
-Capture both lists.
+Capture all three lists (`TO_FIX`, `MANUAL_REVIEW`, `SUPPRESSED_SKIPPED`).
 
 If `TO_FIX` is empty, print "No findings match the selected scope. Exiting." and exit cleanly.
 
@@ -150,10 +151,13 @@ If the user selected interactive one-by-one, display the finding summary before 
   CWE: <cwe>
   Remediation hint: <remediation_hint>
 
-Action? [apply / skip / quit]
+Action? [apply / skip / suppress / quit]
 ```
 
-On `skip`, mark finding `editor_skipped`, continue. On `quit`, exit the loop and proceed to post-flight.
+- `apply` → proceed with F.2.
+- `skip` → mark finding `editor_skipped` and continue to the next finding.
+- `suppress` → mark this finding as a false positive. Ask the user for a one-line reason, then invoke `/securecoder-suppress add --match '{"id": "<finding-id>"}' --reason "<reason>"` (the agent runs `suppress.py` directly). Mark the finding `editor_skipped_suppressed` in the fix log. Continue to the next finding. The suppression is now recorded in `.securecoder/suppressions.json` and will apply to future scans automatically.
+- `quit` → exit the loop and proceed to post-flight.
 
 ### F.2 Compose the LLM prompt
 
@@ -484,7 +488,7 @@ On hard failure, write `$RUN_DIR/crash_report.md` and exit. Do not partially wri
 ## Invariants
 
 1. Every file slated for modification has a backup at `$RUN_DIR/backups/<path>` before any patch is applied.
-2. After the loop, every finding in `TO_FIX` has a corresponding entry in `$RUN_DIR/fix_log.jsonl` with one of: `applied`, `editor_failed`, `editor_skipped`, `manual_review_required`, `applied_unverified`.
+2. After the loop, every finding in `TO_FIX` has a corresponding entry in `$RUN_DIR/fix_log.jsonl` with one of: `applied`, `editor_failed`, `editor_skipped`, `editor_skipped_suppressed`, `manual_review_required`, `applied_unverified`.
 3. Files that failed all 3 retries are byte-identical to their backup version.
 4. No commit references a finding's `editor_failed` status. Only `applied` and `applied_unverified` produce commits.
 5. After `--restore`, every file with a backup is either byte-identical to its backup OR the user explicitly skipped it via the per-file confirmation flow.

@@ -23,6 +23,8 @@ Install location: <project-root>/.git/hooks/pre-commit
 """
 from __future__ import annotations
 
+import datetime as dt
+import fnmatch
 import json
 import os
 import shutil
@@ -32,6 +34,73 @@ from pathlib import Path
 
 
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
+
+def _today_utc() -> dt.date:
+    return dt.datetime.now(dt.timezone.utc).date()
+
+
+def _is_expired(entry: dict, today: dt.date) -> bool:
+    raw = entry.get("expires_at")
+    if not raw:
+        return False
+    try:
+        if "T" in str(raw):
+            exp = dt.datetime.fromisoformat(str(raw).replace("Z", "+00:00")).date()
+        else:
+            exp = dt.date.fromisoformat(str(raw))
+    except ValueError:
+        return False
+    return exp < today
+
+
+def load_suppressions(project_root: Path) -> list:
+    """Return the list of live (non-expired) suppression entries.
+
+    Returns [] when the file is missing or malformed — the hook degrades
+    gracefully if suppressions.json isn't set up.
+    """
+    sup_path = project_root / ".securecoder" / "suppressions.json"
+    if not sup_path.is_file():
+        return []
+    try:
+        blob = json.loads(sup_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    today = _today_utc()
+    return [
+        e for e in (blob.get("entries", []) or [])
+        if not _is_expired(e, today)
+    ]
+
+
+def is_suppressed(file_path: str, rule_id: str, suppressions: list) -> bool:
+    """Minimal-cost matcher mirroring apply_suppressions.py's logic.
+
+    Only checks file, file_glob, and rule fields — the hook doesn't have
+    canonical IDs (those are computed by the normalizers, which the hook
+    doesn't invoke). framework_ref matching requires framework_refs data
+    that the hook also doesn't have. So id and framework_ref suppressions
+    are effectively skipped by the hook; the full /securecoder-scan run
+    will catch them.
+    """
+    for entry in suppressions:
+        match = entry.get("match", {}) or {}
+        if not match:
+            continue
+        if "rule" in match and rule_id != match["rule"]:
+            continue
+        if "file" in match and file_path != match["file"]:
+            continue
+        if "file_glob" in match and not fnmatch.fnmatch(file_path, match["file_glob"]):
+            continue
+        # If id or framework_ref is the ONLY match key, skip (can't evaluate)
+        keys = set(match.keys())
+        if keys <= {"id", "framework_ref"}:
+            continue
+        # If we get here, every checkable key matched
+        return True
+    return False
 
 
 def find_project_root() -> Path:
@@ -81,8 +150,8 @@ def severity_at_or_above_floor(sev: str, floor: str) -> bool:
     return SEVERITY_RANK.get(sev, 4) <= SEVERITY_RANK.get(floor, 4)
 
 
-def run_semgrep(staged: list, project_root: Path) -> int:
-    """Returns the count of findings at or above floor."""
+def run_semgrep(staged: list, project_root: Path, suppressions: list) -> int:
+    """Returns the count of findings at or above floor, MINUS suppressed ones."""
     binary = tool_path("semgrep")
     if not binary:
         return 0
@@ -113,10 +182,20 @@ def run_semgrep(staged: list, project_root: Path) -> int:
         data = json.loads(r.stdout or "{}")
     except json.JSONDecodeError:
         return 0
-    return len(data.get("results", []))
+    count = 0
+    for result in data.get("results", []):
+        path = result.get("path", "")
+        try:
+            rel = str(Path(path).resolve().relative_to(project_root))
+        except ValueError:
+            rel = path
+        rule = result.get("check_id", "")
+        if not is_suppressed(rel, rule, suppressions):
+            count += 1
+    return count
 
 
-def run_gitleaks(staged: list, project_root: Path) -> int:
+def run_gitleaks(staged: list, project_root: Path, suppressions: list) -> int:
     binary = tool_path("gitleaks")
     if not binary:
         return 0
@@ -133,10 +212,18 @@ def run_gitleaks(staged: list, project_root: Path) -> int:
         data = json.loads(r.stdout or "[]")
     except json.JSONDecodeError:
         return 0
-    return len(data) if isinstance(data, list) else 0
+    if not isinstance(data, list):
+        return 0
+    count = 0
+    for result in data:
+        rel = result.get("File", "")
+        rule = result.get("RuleID", "")
+        if not is_suppressed(rel, rule, suppressions):
+            count += 1
+    return count
 
 
-def run_bandit(staged: list, project_root: Path) -> int:
+def run_bandit(staged: list, project_root: Path, suppressions: list) -> int:
     binary = tool_path("bandit")
     if not binary:
         return 0
@@ -154,7 +241,17 @@ def run_bandit(staged: list, project_root: Path) -> int:
         data = json.loads(r.stdout or "{}")
     except json.JSONDecodeError:
         return 0
-    return len(data.get("results", []))
+    count = 0
+    for result in data.get("results", []):
+        path = result.get("filename", "")
+        try:
+            rel = str(Path(path).resolve().relative_to(project_root))
+        except ValueError:
+            rel = path
+        rule = result.get("test_id", "")
+        if not is_suppressed(rel, rule, suppressions):
+            count += 1
+    return count
 
 
 def main() -> None:
@@ -166,9 +263,11 @@ def main() -> None:
     if not staged:
         sys.exit(0)
 
-    semgrep_count = run_semgrep(staged, project_root)
-    gitleaks_count = run_gitleaks(staged, project_root)
-    bandit_count = run_bandit(staged, project_root)
+    suppressions = load_suppressions(project_root)
+
+    semgrep_count = run_semgrep(staged, project_root, suppressions)
+    gitleaks_count = run_gitleaks(staged, project_root, suppressions)
+    bandit_count = run_bandit(staged, project_root, suppressions)
     total = semgrep_count + gitleaks_count + bandit_count
 
     if total == 0:
