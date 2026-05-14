@@ -4,7 +4,7 @@ An installable collection of AI-agent skills that audits, fixes, and supervises 
 
 securecoder is **fully agent-driven**. No server, no daemon, no API keys. It fetches SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and OWASP framework markdown (ASVS, MASVS, Cheatsheets, Proactive Controls) at runtime on your machine — nothing is sent to a third party by the skill itself.
 
-> **Status:** v1.1.0 — eight skills functional. v1.1.0 adds `/securecoder-suppress` for marking false positives, plus cluster-based bulk suppression in the HTML report and tighter `/securecoder-fix` + `/securecoder-review` integration.
+> **Status:** v1.2.0 — nine skills functional. v1.2.0 adds `/securecoder-update` (version checker), source-code suppression annotations (`# securecoder: ignore`), smart-collapse virtualization for large reports, sample-assisted cluster review, and 46 new pytest cases backfilling v0.x helper coverage.
 
 ## Quickstart
 
@@ -64,7 +64,7 @@ That's the minimum path. The other four skills add specific value — see [§ Th
    └─────────────────────────────────────────────────────────────────┘
 ```
 
-## The eight skills
+## The nine skills
 
 | Skill | One-line purpose | When to invoke it | Follow up with |
 | --- | --- | --- | --- |
@@ -76,6 +76,7 @@ That's the minimum path. The other four skills add specific value — see [§ Th
 | `/securecoder-build` | Activate persistent ASVS supervision for the rest of the chat session. | When starting new feature work or a fresh project. | `/securecoder-review` (each substantive change) |
 | `/securecoder-advise` | Q&A grounded in cached framework markdown. Verbatim citations. | When you don't understand a finding, want to look up a control, or are weighing a design choice. | (no specific follow-up — read and learn) |
 | `/securecoder-suppress` | Mark findings as false positives. Team-shared via `.securecoder/suppressions.json`. | When a finding is wrong or expected. Also via the HTML report's per-finding/cluster Suppress UI. | `/securecoder-scan` (re-run for effect) |
+| `/securecoder-update` | Check whether installed securecoder is current. Reports latest release + the install command if an upgrade exists. | Periodically (~monthly). Read-only; never modifies anything. | (run the install command if an upgrade is offered) |
 
 ### Example invocations
 

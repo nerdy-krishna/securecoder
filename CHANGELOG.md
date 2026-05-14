@@ -4,6 +4,39 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-15
+
+Six slices delivering the v1.2.0 roadmap items: version-check helper, source-code suppression annotations, smart-collapse virtualization, sample-assisted cluster review, plus 46 new pytest cases backfilling v0.x helper coverage. Brings the skill count to 9 and the test count to 83.
+
+### Added
+
+- **`/securecoder-update`** — the 9th skill. Reports installed vs latest GitHub release; surfaces the install command without auto-upgrading. Ships a `VERSION` file alongside its SKILL.md that the skills.sh installer carries into the host. Four exit codes (up-to-date / update-available / missing-VERSION / API-unreachable) and a `--json` mode.
+- **Source-code suppression annotations.** `# securecoder: ignore [reason="..."] [expires="..."]` (and `// securecoder: ignore` for JS-style line comments) work as an alternative to config-file suppressions. The new `scan_annotations.py` helper walks the repo before `apply_suppressions.py` runs and emits ephemeral entries with `source: "annotation"` and `created_by: "<annotation>"`. Inline annotations apply to their own line; line-only annotations apply to the next non-blank code line.
+- **`lines: {start, end}` match field** on suppression entries (specificity score 1 — just below `id`, above `rule + file`). A finding matches if its starting line is within the entry's range. Used by source-code annotations; available to manually-written entries too.
+- **Smart-collapse virtualization** in the HTML report. When total findings > 500, file-groups render collapsed by default (`<details>` without the `open` attribute — browser skips article-card rendering inside). New `[Expand all visible] [Collapse all]` toolbar appears in large reports.
+- **Sample-assisted cluster review.** New "Review samples" button on every cluster row. Opens a modal with 5 random samples; each has Keep/Suppress vote buttons. When all 5 are voted: if ≥80% suppress, the modal's "Suppress entire cluster" button is enabled and reuses the standard staging pipeline. Modal samples are pulled from the DOM by matching the cluster's rule + file_glob (regex-built from gitignore-style globs).
+- **46 new pytest cases** across 7 new test files covering v0.x helpers: repo_walker (5), all four SAST normalizers (12), validate_coverage (4), compute_trend (7), diff_scoper (6), apply_patch (7), syntax_check (5). Plus 8 cases for scan_annotations and 1 new for apply_suppressions' `lines` match field.
+
+### Changed
+
+- **Suppression specificity ranking** updated to insert `file + lines` (score 1, annotation-style) between `id` (score 0) and `rule + file` (now score 2). Existing entries keep working — only the relative ordering between certain combinations shifts when both are present.
+- **`apply_suppressions.py` CLI** gains `--annotations <path>` for the ephemeral-entries JSON array. When present, those entries are appended after persistent entries.
+- **Scan SKILL.md** gains Phase A.7.3 (scan annotations) before A.7.5 (apply suppressions). The A.7.5 invocation conditionally includes `--annotations` when the annotations file is non-empty.
+
+### Compatibility
+
+- Backwards-compatible. Repos without annotations behave identically to v1.1.0; repos without `.securecoder/suppressions.json` behave identically to v1.0.0.
+- No new pinned upstreams.
+- No new external dependencies.
+
+### Deferred to v1.3.0
+
+- DOM-level virtualized rendering (smart-collapse is the workaround; ~100 LOC plain-JS virtual scroll remains future work).
+- Block-comment annotation syntax (`/* securecoder: ignore */`). Line comments only for now.
+- Live workflow YAML installation (still ships as a `scripts/ci/pinned-tag-bumps.yml.template` due to OAuth-scope limits on the install token).
+- Windows end-to-end validation.
+- Higher-coverage pytest backfill for the render functions and search helpers (currently smoke-tested via integration only).
+
 ## [1.1.0] — 2026-05-14
 
 False-positive suppression. Eight slices covering the full feature: schema + matcher + scan integration + new skill + fix/review integration + HTML UI (per-finding + multi-select + cluster view + suppressions section) + advise integration + 22 pytest tests.
@@ -326,7 +359,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.2.0
 [1.1.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.1.0
 [1.0.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.0.0
 [0.12.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.12.0
