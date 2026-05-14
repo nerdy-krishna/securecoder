@@ -4,6 +4,20 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-05-14
+
+`/securecoder-advise` becomes functional. Interactive Q&A grounded in cached framework markdown and the latest scan's findings. Read-only — never modifies code.
+
+### Added
+- **`/securecoder-advise`** with 4-mode picker (general / findings-grounded / specific finding deep-dive / framework lookup). Default invocation: `/securecoder-advise <question>`. No-arg invocation presents the mode picker.
+- **`scripts/search_rules.py`** — keyword search across cached framework markdown. Splits by markdown headings, scores by keyword occurrences in body (1.0) / heading (3.0), bonus for sections containing control IDs. Returns top-N matching sections with snippet previews. Available to the agent and invokable by users directly ("search the ASVS for SSRF").
+- **Verbatim-cite-then-interpret response format.** Every answer quotes framework text in a blockquote first, citing `<framework> <version> <control-id>`, then interprets in plain language, then cross-references user findings when applicable.
+- **Loaded-context summary** on first turn so the user sees what's grounding the answers (framework versions, finding counts, severity floor).
+
+### Compatibility
+- Reads framework cache populated by `/securecoder-scan` Phase B. If empty, the skill answers with an explicit ungrounded disclaimer and recommends running a scan.
+- Skill is fully offline-capable once the cache is populated.
+
 ## [0.10.0] — 2026-05-14
 
 `/securecoder-build` becomes functional. The skill emits a persistent secure-build policy block into the chat session that supervises every subsequent code-producing task. Optional minimal bootstrap for empty repos. ASVS-only by default.
@@ -207,7 +221,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.11.0
 [0.10.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.10.0
 [0.9.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.9.0
 [0.8.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.8.0
