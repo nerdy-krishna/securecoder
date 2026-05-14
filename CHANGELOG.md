@@ -4,6 +4,28 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-14
+
+Every `/securecoder-scan` run now produces both a markdown and a self-contained HTML report, plus a cross-run trend section that compares the current findings to the most recent prior run.
+
+### Added
+- **HTML report renderer** (`scripts/render_html.py`). Self-contained: inlined CSS in a `<style>` block, inlined client-side filtering JS in a `<script>` block, no external `<link>` / `<script src=>` / `<img src=>`. Opens correctly in any modern browser with networking disabled.
+- **Interactive filtering** on the HTML report: severity, source (semgrep / bandit / gitleaks / osv-scanner), framework (asvs-v5 / owasp-top-10-2021 / etc.), plus a free-text search across file path / title / description / evidence. File groups with no visible findings auto-collapse.
+- **Trend computer** (`scripts/compute_trend.py`). Walks sibling run directories under `.securecoder/runs/`, picks the most recent run before the current one, and emits JSON describing the new / resolved / persistent finding buckets by canonical ID.
+- **`trend` field in `manifest.json`** populated by every scan. Both renderers read it; first-run reports correctly say "First run — no trend data yet."
+- **HTML supports light and dark color scheme** via `@media (prefers-color-scheme)`.
+
+### Changed
+- `render_markdown.py` trend section now shows the prior-run ID + new / resolved / persistent counts, or "First run — no trend data yet" when no prior exists.
+- SKILL.md flow extended: A.8 (compute trend) → A.9 (write manifest with trend) → A.10 (render markdown + HTML) → A.11 (latest pointer) → A.12 (gitignore) → A.13 (summary).
+
+### Compatibility
+- No new pinned upstreams. No new external dependencies.
+- Python: 3.9+. HTML uses modern CSS (custom properties, `prefers-color-scheme`, `display: flex/grid`) and ES5 JS for broad browser support.
+
+### Tests
+- Deferred. Manual smoke-testing covered: compute_trend in three scenarios (first run, identical-prior, mixed prior); markdown trend rendering with and without trend data; HTML rendering plus a self-containment grep verifying zero external resource references.
+
 ## [0.3.0] — 2026-05-14
 
 `/securecoder-scan` becomes multi-tool. Bandit, Gitleaks, and OSV-scanner join Semgrep in the SAST pipeline. Findings from all four tools merge into one `findings.jsonl`. Per-tool soft-failure policy means one crashing tool doesn't break the whole scan.
@@ -80,7 +102,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.4.0
 [0.3.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.3.0
 [0.2.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.2.0
 [0.1.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.1.0

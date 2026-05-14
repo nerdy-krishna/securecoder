@@ -423,7 +423,23 @@ done
 
 Canonical IDs are deterministic and per-tool prefixes in `source` keep cross-tool collisions impossible.
 
-### A.8 Write the manifest
+### A.8 Compute the trend vs prior runs
+
+Before writing the manifest, compare this run's findings to the most recent prior run in `.securecoder/runs/`:
+
+```bash
+python3 "<skill-dir>/scripts/compute_trend.py" \
+  "$RUN_DIR/findings.jsonl" \
+  --runs-dir "$PROJECT_ROOT/.securecoder/runs" \
+  --current-run-id "$RUN_ID" \
+  --output "$RUN_DIR/_trend.json"
+```
+
+`_trend.json` is an intermediate file; its contents get embedded into `manifest.json` under the `trend` key in A.9.
+
+If no prior run exists, `compute_trend.py` still emits a valid file with `previous_run_id: null` and empty buckets. The renderers interpret that as "first run for this project."
+
+### A.9 Write the manifest
 
 ```bash
 REPO_SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo no-git)"
@@ -439,6 +455,10 @@ def get_tool_version(name):
     with open(os.path.expanduser(f"~/.cache/securecoder/tools/{name}/installed.json")) as fh:
       return json.load(fh).get("version", "")
   except OSError: return "skipped"
+def load_json(p, default=None):
+  try:
+    with open(p) as fh: return json.load(fh)
+  except OSError: return default
 
 run_dir = os.environ["RUN_DIR"]
 per_tool = {}
@@ -450,6 +470,8 @@ for tool, friendly in [("semgrep","semgrep"),("bandit","bandit"),
     "findings": count(intermediate),
     "status": os.environ.get(f"{tool.upper()}_STATUS", "ok"),
   }
+
+trend = load_json(f"{run_dir}/_trend.json")
 
 manifest = {
   "schema_version": "1.0",
@@ -478,6 +500,7 @@ manifest = {
       "per_tool": per_tool,
     }
   },
+  "trend": trend,
   "totals": {
     "findings": count(f"{run_dir}/findings.jsonl"),
     "duration_s": sum(t["duration_s"] for t in per_tool.values())
@@ -491,16 +514,21 @@ PY
 
 Export the variables before calling: `RUN_ID`, `STARTED_AT`, `PROJECT_ROOT`, `REPO_SHA`, `SHA` (Semgrep rules), `RUN_DIR`, plus `<TOOL>_SECONDS` and `<TOOL>_STATUS` for each tool (`SEMGREP_SECONDS`, `SEMGREP_STATUS`, `BANDIT_SECONDS`, etc.).
 
-### A.9 Render the markdown report
+### A.10 Render the markdown and HTML reports
 
 ```bash
 python3 "<skill-dir>/scripts/render_markdown.py" "$RUN_DIR/findings.jsonl" \
   --manifest "$RUN_DIR/manifest.json" --output "$RUN_DIR/report.md"
+
+python3 "<skill-dir>/scripts/render_html.py" "$RUN_DIR/findings.jsonl" \
+  --manifest "$RUN_DIR/manifest.json" --output "$RUN_DIR/report.html"
 ```
 
-HTML and trend sections are placeholders for slice 04.
+The HTML report is self-contained: inlined CSS in a `<style>` block, inlined filtering JS in a `<script>` block, no external resources. It includes client-side filtering by severity / source / framework and a free-text search across file path / title / description / evidence. Opens in any modern browser with networking disabled.
 
-### A.10 Update the `latest` pointer
+The trend section (in both formats) compares this run's findings to the most recent prior run by canonical ID, showing new / resolved / persistent counts. On the first run, it shows "First run — no trend data yet."
+
+### A.11 Update the `latest` pointer
 
 ```bash
 LATEST="$PROJECT_ROOT/.securecoder/runs/latest"
@@ -511,7 +539,7 @@ else
 fi
 ```
 
-### A.11 Ensure `.securecoder/.gitignore`
+### A.12 Ensure `.securecoder/.gitignore`
 
 ```bash
 GITIGNORE="$PROJECT_ROOT/.securecoder/.gitignore"
@@ -524,7 +552,7 @@ EOF
 fi
 ```
 
-### A.12 Print the summary
+### A.13 Print the summary
 
 ```
 securecoder-scan complete

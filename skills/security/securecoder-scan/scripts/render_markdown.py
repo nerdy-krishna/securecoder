@@ -109,17 +109,19 @@ def render(findings: list[dict], manifest: dict) -> str:
             )
         out.append("")
 
-    # --- Trend (placeholder; populated in slice 04)
+    # --- Trend vs prior run
     trend = manifest.get("trend") or {}
     if trend:
-        out.append("## Trend\n")
-        out.append(f"- **New since last run:** {len(trend.get('new', []))}")
-        out.append(
-            f"- **Resolved since last run:** {len(trend.get('resolved', []))}"
-        )
-        out.append(
-            f"- **Persistent across runs:** {len(trend.get('persistent', []))}"
-        )
+        out.append("## Trend vs previous run\n")
+        prev_id = trend.get("previous_run_id")
+        if not prev_id:
+            out.append("- First run for this project — no trend data yet.")
+        else:
+            summary = trend.get("summary", {}) or {}
+            out.append(f"- Compared against run `{prev_id}`")
+            out.append(f"- **New findings:** {summary.get('new_count', 0)}")
+            out.append(f"- **Resolved findings:** {summary.get('resolved_count', 0)}")
+            out.append(f"- **Persistent findings:** {summary.get('persistent_count', 0)}")
         out.append("")
 
     # --- Findings
