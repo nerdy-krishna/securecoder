@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.tox/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Local development
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Test artifacts produced when running securecoder against a sample repo
+# inside this checkout for development; not the project's distributable state
+.securecoder/runs/
+.securecoder/reviews/

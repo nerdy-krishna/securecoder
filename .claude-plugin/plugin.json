@@ -1,0 +1,12 @@
+{
+  "name": "securecoder",
+  "skills": [
+    "./skills/security/securecoder-setup",
+    "./skills/security/securecoder-scan",
+    "./skills/security/securecoder-fix",
+    "./skills/security/securecoder-secure",
+    "./skills/security/securecoder-review",
+    "./skills/security/securecoder-build",
+    "./skills/security/securecoder-advise"
+  ]
+}
