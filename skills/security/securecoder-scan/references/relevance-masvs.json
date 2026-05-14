@@ -1,0 +1,62 @@
+{
+  "_about": "Per-chapter applicability hints for MASVS (Mobile Application Security Verification Standard). Only triggered when /securecoder-scan auto-detects a mobile stack OR the user explicitly enables MASVS in /securecoder-setup.",
+  "_schema_version": "1.0",
+  "_chapters": {
+    "MASVS-STORAGE": {
+      "id": "MASVS-STORAGE",
+      "title": "Storage",
+      "filename": "0x05-MASVS-STORAGE.md",
+      "applies_to_languages": ["swift", "kotlin", "java", "javascript", "typescript", "dart"],
+      "keyword_triggers": ["SharedPreferences", "NSUserDefaults", "Keychain", "KeyStore", "localStorage", "AsyncStorage", "SecureRandom", "EncryptedSharedPreferences"]
+    },
+    "MASVS-CRYPTO": {
+      "id": "MASVS-CRYPTO",
+      "title": "Cryptography",
+      "filename": "0x06-MASVS-CRYPTO.md",
+      "applies_to_languages": ["swift", "kotlin", "java", "objective-c", "c", "cpp", "dart"],
+      "keyword_triggers": ["crypto", "encrypt", "decrypt", "AES", "SHA", "HMAC", "CommonCrypto", "javax.crypto", "kotlin.crypto"]
+    },
+    "MASVS-AUTH": {
+      "id": "MASVS-AUTH",
+      "title": "Authentication and Session Management",
+      "filename": "0x07-MASVS-AUTH.md",
+      "applies_to_languages": ["swift", "kotlin", "java", "objective-c", "javascript", "typescript", "dart"],
+      "keyword_triggers": ["biometric", "FaceID", "TouchID", "fingerprint", "OAuth", "jwt", "token", "login", "password"]
+    },
+    "MASVS-NETWORK": {
+      "id": "MASVS-NETWORK",
+      "title": "Network Communication",
+      "filename": "0x08-MASVS-NETWORK.md",
+      "applies_to_languages": ["swift", "kotlin", "java", "objective-c", "javascript", "typescript", "dart"],
+      "keyword_triggers": ["URLSession", "NSURLSession", "HttpsURLConnection", "OkHttp", "fetch(", "axios", "Alamofire", "TrustManager", "certificate"]
+    },
+    "MASVS-PLATFORM": {
+      "id": "MASVS-PLATFORM",
+      "title": "Platform Interaction",
+      "filename": "0x09-MASVS-PLATFORM.md",
+      "applies_to_languages": ["swift", "kotlin", "java", "objective-c", "javascript", "typescript", "dart"],
+      "keyword_triggers": ["WebView", "Intent", "deeplink", "URI", "URLScheme", "exported", "permission"]
+    },
+    "MASVS-CODE": {
+      "id": "MASVS-CODE",
+      "title": "Code Quality and Build Settings",
+      "filename": "0x10-MASVS-CODE.md",
+      "applies_to_languages": ["swift", "kotlin", "java", "objective-c", "javascript", "typescript", "dart"],
+      "keyword_triggers": []
+    },
+    "MASVS-RESILIENCE": {
+      "id": "MASVS-RESILIENCE",
+      "title": "Resilience",
+      "filename": "0x11-MASVS-RESILIENCE.md",
+      "applies_to_languages": ["swift", "kotlin", "java", "objective-c"],
+      "keyword_triggers": ["root", "jailbreak", "debug", "isDebuggerConnected", "tamper", "obfuscation"]
+    },
+    "MASVS-PRIVACY": {
+      "id": "MASVS-PRIVACY",
+      "title": "Privacy",
+      "filename": "0x12-MASVS-PRIVACY.md",
+      "applies_to_languages": ["swift", "kotlin", "java", "objective-c", "javascript", "typescript", "dart"],
+      "keyword_triggers": ["pii", "PII", "location", "GPS", "tracking", "advertising", "analytics", "telemetry"]
+    }
+  }
+}

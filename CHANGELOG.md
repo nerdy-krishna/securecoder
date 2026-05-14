@@ -4,6 +4,30 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-05-14
+
+Multi-framework compliance and maintenance CI. The compliance pass now extends to MASVS (mobile) and OWASP Proactive Controls; Cheatsheets become available as remediation reference. A GitHub Action checks all pinned upstreams weekly and opens a PR when releases advance.
+
+### Added (slice 13 — multi-framework)
+- **Framework registry** at `skills/security/securecoder-scan/references/frameworks.json` listing every supported framework with source repo, branch, chapter directory, control-ID regex, and per-framework relevance file. ASVS v5, MASVS, Proactive Controls, Cheatsheets.
+- **`references/relevance-masvs.json`** — applicability hints for the 8 MASVS chapters (STORAGE / CRYPTO / AUTH / NETWORK / PLATFORM / CODE / RESILIENCE / PRIVACY) with mobile-stack language matchers + keyword triggers.
+- **`references/relevance-proactive-controls.json`** — applicability for the 10 Proactive Controls (C1-C10), broadly backend-language scoped.
+- **Mobile-stack auto-detection** — `frameworks.json` declares `_mobile_stack_signals` globs (iOS / Android / RN / Flutter). When `/securecoder-scan` Phase B starts, it auto-enables MASVS if any matching files are present.
+- **Cheatsheets as remediation context** for `/securecoder-fix` — when a SAST or compliance finding maps to a CheatSheet (via CWE or rule-id heuristic), the relevant cheatsheet section is included in the fix-LLM prompt. Improves fix quality without changing the fix flow.
+- The `cwe-to-framework.json` table gains a placeholder for cheatsheet refs (CWE → cheatsheet file basename), enabling enriched remediation hints.
+- Renamed: `chapter-relevance.json` → `relevance-asvs-v5.json` to match the per-framework naming convention. The SKILL.md path references updated.
+
+### Added (slice 14 — maintenance CI)
+- **`scripts/ci/check_pins.py`** — reads current pinned versions out of SKILL.md and `frameworks.json`, queries the GitHub Releases API for each upstream (Semgrep, Bandit, Gitleaks, OSV-scanner, OWASP/ASVS, OWASP/owasp-masvs, OWASP/www-project-proactive-controls, OWASP/CheatSheetSeries), compares, and produces JSON + Markdown reports.
+- **`scripts/ci/pinned-tag-bumps.yml.template`** — drop-in GitHub Actions workflow. Runs weekly on Mondays at 09:00 UTC plus `workflow_dispatch` on demand. Opens a `chore: pinned upstream version bumps` PR (labels: `dependencies`, `auto-pr`) when any tool pin is outdated; duplicate-detects existing open PRs on the same branch. **Install:** move to `.github/workflows/pinned-tag-bumps.yml` and commit with a token that has the `workflow` scope. Shipped as a template so the package install via skills.sh doesn't require additional GitHub permissions.
+
+### Compatibility
+- The compliance pass still works with just `asvs-v5` enabled (the default). New frameworks are opt-in (or auto-enabled in MASVS's case).
+- The CI workflow needs `contents: write` and `pull-requests: write` permissions — already declared in the YAML.
+
+### Tests
+- Deferred. The new relevance files are JSON data; the per-framework Phase B logic reuses the existing tested machinery. The CI check_pins.py script is best validated by running it against the live GitHub API, which the workflow itself does on the schedule.
+
 ## [0.11.0] — 2026-05-14
 
 `/securecoder-advise` becomes functional. Interactive Q&A grounded in cached framework markdown and the latest scan's findings. Read-only — never modifies code.
@@ -221,7 +245,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.12.0
 [0.11.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.11.0
 [0.10.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.10.0
 [0.9.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.9.0

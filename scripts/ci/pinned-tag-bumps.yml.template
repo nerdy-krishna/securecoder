@@ -1,0 +1,58 @@
+name: Pinned upstream version check
+
+on:
+  schedule:
+    # Every Monday 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-open-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run pin checker
+        id: check
+        run: |
+          python3 scripts/ci/check_pins.py --json --markdown /tmp/pr_body.md > /tmp/report.json || echo "outdated=true" >> "$GITHUB_OUTPUT"
+          echo "report<<EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/report.json >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Open PR if outdated
+        if: steps.check.outputs.outdated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/pin-bumps-$(date -u +%Y%m%d)"
+          if gh pr list --head "$BRANCH" --state open --json number --jq '.[].number' | grep -q .; then
+            echo "PR for branch $BRANCH already exists; skipping."
+            exit 0
+          fi
+          git checkout -b "$BRANCH"
+          # The PR body lists which upstreams have new releases; the actual
+          # SKILL.md edits remain a human task — the bot just surfaces the
+          # delta. Future enhancement: auto-edit the version strings.
+          touch CHANGELOG.md
+          git add -A
+          git -c "user.email=securecoder-bot@noreply.github.com" \
+              -c "user.name=securecoder-bot" \
+              commit --allow-empty -m "chore: pinned upstream version check $(date -u +%Y-%m-%d)"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "chore: pinned upstream version bumps" \
+            --body-file /tmp/pr_body.md \
+            --label "dependencies" \
+            --label "auto-pr"

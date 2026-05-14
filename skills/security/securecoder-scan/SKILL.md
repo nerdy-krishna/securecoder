@@ -586,7 +586,16 @@ Only runs when the user picked "LLM compliance only" or "Both" at the mode picke
 
 Read `config.frameworks` from `.securecoder/config.json` (default: `["asvs-v5"]`).
 
-In v0.6.0 we only know how to run **ASVS v5**. MASVS / Proactive Controls / Cheatsheets land in slice 13. If the user has additional frameworks enabled, run ASVS now and note the others as `skipped_not_yet_implemented` in `manifest.phases.compliance.per_framework`.
+The framework registry at `<skill-dir>/references/frameworks.json` declares supported frameworks. As of v0.12.0:
+
+- **`asvs-v5`** — fully scannable, default-enabled
+- **`masvs`** — fully scannable, auto-enabled when `_mobile_stack_signals` patterns match files in the repo (iOS / Android / Kotlin / Swift / React Native / Flutter)
+- **`proactive-controls`** — fully scannable, opt-in via `/securecoder-setup`
+- **`cheatsheets`** — NOT scanned against; fetched for `/securecoder-fix` remediation context and `/securecoder-advise` grounding
+
+**Mobile-stack auto-detection** — before deciding the active framework list, check whether any file in the repo matches the `_mobile_stack_signals` globs from `frameworks.json`. If yes AND `masvs` isn't already enabled, add it to the active list and log a note: "Detected mobile stack; auto-enabled MASVS. Disable in /securecoder-setup if unwanted."
+
+For each active framework that's `scannable: true`, run Phases B.1–B.6 below in turn. Each framework writes its findings into the same merged `findings.jsonl`. Cheatsheets (when enabled) are fetched but not scanned.
 
 ### B.1 Fetch the ASVS chapter content
 
@@ -639,7 +648,7 @@ Offline-fail message follows the same pattern as A.2.
 ```bash
 python3 "<skill-dir>/scripts/file_relevance.py" \
   "$RUN_DIR/repo_map.json" \
-  --chapter-relevance "<skill-dir>/references/chapter-relevance.json" \
+  --chapter-relevance "<skill-dir>/references/relevance-<framework>.json" \
   --repo-root "$PROJECT_ROOT" \
   --output "$RUN_DIR/_compliance_pairs.json"
 ```

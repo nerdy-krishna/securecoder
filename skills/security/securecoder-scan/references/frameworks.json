@@ -1,0 +1,66 @@
+{
+  "_about": "Registry of compliance frameworks supported by /securecoder-scan Phase B and /securecoder-build. Each entry declares the upstream source repo, pinned branch/tag, expected chapter directory structure, and the relevance file used to determine which file × chapter pairs to dispatch. The CWE-to-framework table in cwe-to-framework.json enriches SAST findings with refs into these frameworks; the LLM compliance pass directly produces findings against them.",
+  "_schema_version": "1.0",
+  "_frameworks": {
+    "asvs-v5": {
+      "name": "OWASP ASVS v5",
+      "purpose": "web-app-compliance",
+      "source": "https://github.com/OWASP/ASVS.git",
+      "branch": "master",
+      "chapter_dir": "5.0/en",
+      "chapter_filename_pattern": "0x*-V*-*.md",
+      "control_id_regex": "\\*\\*(\\d+\\.\\d+\\.\\d+)\\*\\*",
+      "control_id_prefix": "V",
+      "relevance_file": "relevance-asvs-v5.json",
+      "scannable": true,
+      "default_enabled": true
+    },
+    "masvs": {
+      "name": "OWASP MASVS",
+      "purpose": "mobile-app-compliance",
+      "source": "https://github.com/OWASP/owasp-masvs.git",
+      "branch": "master",
+      "chapter_dir": "Document/en",
+      "chapter_filename_pattern": "0x*-MASVS-*.md",
+      "control_id_regex": "\\*\\*(MASVS-[A-Z]+-\\d+)\\*\\*",
+      "control_id_prefix": "MASVS-",
+      "relevance_file": "relevance-masvs.json",
+      "scannable": true,
+      "default_enabled": false,
+      "auto_enable_on": ["ios", "android", "kotlin", "swift", "react-native"]
+    },
+    "proactive-controls": {
+      "name": "OWASP Proactive Controls",
+      "purpose": "defensive-design-checklist",
+      "source": "https://github.com/OWASP/www-project-proactive-controls.git",
+      "branch": "master",
+      "chapter_dir": "v4/en",
+      "chapter_filename_pattern": "0x*-C*-*.md",
+      "control_id_regex": "\\*\\*(C\\d+)\\*\\*",
+      "control_id_prefix": "C",
+      "relevance_file": "relevance-proactive-controls.json",
+      "scannable": true,
+      "default_enabled": false
+    },
+    "cheatsheets": {
+      "name": "OWASP Cheat Sheet Series",
+      "purpose": "remediation-reference",
+      "source": "https://github.com/OWASP/CheatSheetSeries.git",
+      "branch": "master",
+      "chapter_dir": "cheatsheets",
+      "chapter_filename_pattern": "*.md",
+      "control_id_regex": null,
+      "control_id_prefix": null,
+      "relevance_file": null,
+      "scannable": false,
+      "default_enabled": false,
+      "_note": "Cheatsheets are NOT scanned against. They're fetched to enrich /securecoder-fix's remediation prompts and to ground /securecoder-advise answers."
+    }
+  },
+  "_mobile_stack_signals": {
+    "ios": ["*.swift", "Podfile", "Podfile.lock", "Info.plist"],
+    "android": ["AndroidManifest.xml", "build.gradle", "*.kt", "*.java"],
+    "react-native": ["react-native.config.js", "metro.config.js"],
+    "flutter": ["pubspec.yaml", "pubspec.lock"]
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "_about": "Per-chapter applicability for OWASP Proactive Controls. Each control is a broad defensive design principle — applicability is generally 'all backend languages' unless the control is web-specific.",
+  "_schema_version": "1.0",
+  "_chapters": {
+    "C1": {
+      "id": "C1",
+      "title": "Define Security Requirements",
+      "filename": "0x01-C1-Define-Security-Requirements.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css"],
+      "keyword_triggers": []
+    },
+    "C2": {
+      "id": "C2",
+      "title": "Leverage Security Frameworks and Libraries",
+      "filename": "0x02-C2-Leverage-Security-Frameworks-and-Libraries.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css", "html"],
+      "keyword_triggers": []
+    },
+    "C3": {
+      "id": "C3",
+      "title": "Secure Database Access",
+      "filename": "0x03-C3-Secure-Database-Access.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["sql", "database", "query", "ORM", "raw_query", "execute(", "Connection", "Session", "DataSource", "JDBC"]
+    },
+    "C4": {
+      "id": "C4",
+      "title": "Encode and Escape Data",
+      "filename": "0x04-C4-Encode-and-Escape-Data.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp", "html"],
+      "keyword_triggers": ["innerHTML", "dangerouslySetInnerHTML", "escapeHtml", "encodeURIComponent", "render", "format", "f\"{", "%s"]
+    },
+    "C5": {
+      "id": "C5",
+      "title": "Validate All Inputs",
+      "filename": "0x05-C5-Validate-All-Inputs.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["validate", "schema", "pydantic", "joi", "yup", "zod", "marshmallow", "Bean Validation", "@Valid"]
+    },
+    "C6": {
+      "id": "C6",
+      "title": "Implement Digital Identity",
+      "filename": "0x06-C6-Implement-Digital-Identity.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["login", "signin", "auth", "jwt", "oauth", "oidc", "session", "credential"]
+    },
+    "C7": {
+      "id": "C7",
+      "title": "Enforce Access Controls",
+      "filename": "0x07-C7-Enforce-Access-Controls.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["authorize", "@requires", "is_admin", "permission", "role", "rbac", "abac", "current_user"]
+    },
+    "C8": {
+      "id": "C8",
+      "title": "Protect Data Everywhere",
+      "filename": "0x08-C8-Protect-Data-Everywhere.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["encrypt", "TLS", "HTTPS", "hash", "bcrypt", "scrypt", "argon2", "AES", "RSA"]
+    },
+    "C9": {
+      "id": "C9",
+      "title": "Implement Security Logging and Monitoring",
+      "filename": "0x09-C9-Implement-Security-Logging-and-Monitoring.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["logger", "logging", "audit", "log.info", "log.warn", "log.error", "console.log"]
+    },
+    "C10": {
+      "id": "C10",
+      "title": "Handle All Errors and Exceptions",
+      "filename": "0x10-C10-Handle-All-Errors-and-Exceptions.md",
+      "applies_to_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "keyword_triggers": ["try", "catch", "except", "panic", "raise", "throw", "error handler"]
+    }
+  }
+}
