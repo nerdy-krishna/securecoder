@@ -4,6 +4,22 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-05-14
+
+`/securecoder-review` becomes functional. Diff-scoped security review — SAST + scoped LLM compliance on changed hunks only. Cost proportional to diff size, not repo size. Optional pre-commit hook installation for SAST-only blocking-mode in `git`'s shell context.
+
+### Added
+- **`/securecoder-review`** with 4 scope modes: staged / staged+unstaged / branch-vs-base / specific commit range. Default: staged.
+- **`scripts/diff_scoper.py`** — unified-diff parser. Outputs per-file added line ranges plus ±20-line context windows. Tolerates hunk boundaries, file renames, new files, deletions.
+- **`scripts/review_hook.py`** — standalone pre-commit shim. Runs SAST tools against staged files only (no LLM call, no agent dependency). Blocks the commit when any finding above `config.severity_floor` is present. Reminds the user to run `/securecoder-review` interactively for compliance review before pushing.
+- **Diff-scope filtering** for both SAST and compliance findings — findings in unchanged regions of touched files are dropped from the review report. The full scan output is still available via `/securecoder-scan`.
+- **`.securecoder/reviews/<id>/`** directory layout — separate from `.securecoder/runs/<id>/`, so review history doesn't pollute the cross-run trend baseline.
+- **Optional hook installation** with automatic backup of any pre-existing `.git/hooks/pre-commit` — `before-securecoder-<timestamp>` suffix.
+
+### Compatibility
+- Hook reuses cached SAST binaries from `~/.cache/securecoder/tools/`. If they're missing, the hook prints a hint and exits 0 (doesn't block commits just because the cache is empty).
+- Bypassable per-commit via `git commit --no-verify`.
+
 ## [0.8.0] — 2026-05-14
 
 `/securecoder-secure` becomes functional. The easy-button skill wires `/securecoder-scan` and `/securecoder-fix` into a 4-phase pipeline: SAST scan → SAST fix → compliance scan → compliance fix. One up-front approval covers the whole pipeline; a 50%-overrun mid-run gate offers a single safety bail.
@@ -174,7 +190,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.9.0
 [0.8.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.8.0
 [0.7.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.7.0
 [0.6.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v0.6.0
