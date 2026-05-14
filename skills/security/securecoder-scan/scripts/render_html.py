@@ -424,9 +424,120 @@ CSS = """
     padding: 10px 16px;
     list-style: none;
     display: grid;
-    grid-template-columns: 2fr 3fr 2fr 2fr auto;
+    grid-template-columns: 2fr 3fr 2fr 2fr auto auto;
     align-items: center;
     gap: 10px;
+  }
+  .review-samples-btn {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .review-samples-btn:hover { background: var(--accent); color: white; }
+  /* Sample-review modal (slice 12.D) */
+  .sample-review {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 150;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .sample-review.open { display: flex; }
+  .sample-review .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-width: 900px;
+    width: 92%;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .sample-review h2 { margin-top: 0; }
+  .sample-review .sample-card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 10px 0;
+  }
+  .sample-review .sample-meta {
+    font-family: SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    color: var(--fg-mute);
+    margin-bottom: 6px;
+  }
+  .sample-review .sample-title { font-weight: 600; margin-bottom: 6px; }
+  .sample-review .sample-evidence {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 6px 0;
+  }
+  .sample-review .vote-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .sample-review .vote-btn {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+  }
+  .sample-review .vote-btn.voted-keep {
+    background: var(--good); color: white; border-color: var(--good);
+  }
+  .sample-review .vote-btn.voted-suppress {
+    background: var(--med); color: white; border-color: var(--med);
+  }
+  .sample-review .tally {
+    margin: 12px 0;
+    padding: 10px 14px;
+    background: var(--bg-elev);
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .sample-review .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+  .sample-review .modal-actions button {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font: inherit;
+  }
+  .sample-review .modal-actions button.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .sample-review .modal-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
   details.cluster-row > summary::-webkit-details-marker { display: none; }
   details.cluster-row > summary::before {
@@ -481,6 +592,34 @@ CSS = """
     padding: 3px 0;
   }
   .muted { color: var(--fg-mute); font-size: 12px; }
+
+  /* ─── Slice 12.C smart-collapse toolbar ─── */
+  .collapse-toolbar {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin: 8px 0 12px 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+  }
+  .collapse-toolbar button {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+  }
+  .collapse-toolbar button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 
   /* ─── Slice 11.F polish ─── */
   article.finding.suppressed-finding {
@@ -840,6 +979,25 @@ JS = """
     updateMultiselectBar();
   });
 
+  // Smart-collapse toolbar buttons (only present in large reports)
+  var btnExpand = document.getElementById('btn-expand-visible');
+  var btnCollapse = document.getElementById('btn-collapse-all');
+  if (btnExpand) {
+    btnExpand.addEventListener('click', function() {
+      // Only expand groups whose summary is currently visible (filter-aware)
+      document.querySelectorAll('details.file-group').forEach(function(g) {
+        if (!g.classList.contains('hidden')) g.setAttribute('open', '');
+      });
+    });
+  }
+  if (btnCollapse) {
+    btnCollapse.addEventListener('click', function() {
+      document.querySelectorAll('details.file-group').forEach(function(g) {
+        g.removeAttribute('open');
+      });
+    });
+  }
+
   // Show-suppressed toggle
   var showSupTog = document.getElementById('toggle-show-suppressed');
   if (showSupTog) {
@@ -875,6 +1033,141 @@ JS = """
     tabFlat.addEventListener('click', function() { setView('flat'); });
     tabClusters.addEventListener('click', function() { setView('clusters'); });
   }
+
+  // Sample-assisted cluster review (slice 12.D)
+  var sampleModal = document.getElementById('sample-review');
+  var sampleBody = document.getElementById('sample-review-body');
+  var sampleTitle = document.getElementById('sample-review-title');
+  var sampleTally = document.getElementById('sample-review-tally');
+  var sampleSuppressBtn = document.getElementById('btn-suppress-from-sample');
+  var sampleCloseBtn = document.getElementById('btn-close-sample-review');
+  var currentSampleCluster = null;
+  var currentSampleVotes = {};  // finding-id → 'keep' or 'suppress'
+
+  function fileMatchesGlob(file, glob) {
+    if (!glob) return true;
+    // Convert gitignore-style glob to simple regex; handles ** and *
+    var re = '^' + glob.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+                       .replace(/\*\*/g, '.*')
+                       .replace(/\*/g, '[^/]*') + '$';
+    try { return new RegExp(re).test(file); } catch (e) { return false; }
+  }
+
+  function collectClusterFindings(rule, glob) {
+    var matches = [];
+    document.querySelectorAll('article.finding').forEach(function(el) {
+      if (el.getAttribute('data-rule') !== rule) return;
+      var file = el.getAttribute('data-file') || '';
+      if (glob && !fileMatchesGlob(file, glob.replace(/\/\*\*$/, '') + '/**')) return;
+      matches.push(el);
+    });
+    return matches;
+  }
+
+  function sampleRandom(arr, n) {
+    var shuffled = arr.slice();
+    for (var i = shuffled.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = tmp;
+    }
+    return shuffled.slice(0, n);
+  }
+
+  function renderSamplesIntoModal(samples, rule, glob) {
+    sampleBody.innerHTML = '';
+    currentSampleVotes = {};
+    samples.forEach(function(el) {
+      var fid = el.getAttribute('data-finding-id');
+      var file = el.getAttribute('data-file');
+      var line = (el.querySelector('.finding-loc') || {}).textContent || '';
+      var title = (el.querySelector('.finding-title') || {}).textContent || '';
+      var evidence = (el.querySelector('.evidence') || {}).textContent || '';
+      var card = document.createElement('div');
+      card.className = 'sample-card';
+      card.setAttribute('data-finding-id', fid);
+      card.innerHTML =
+        '<div class="sample-meta">' + file + ' ' + line + ' · ID ' + (fid || '').slice(0, 12) + '</div>' +
+        '<div class="sample-title">' + title + '</div>' +
+        (evidence ? '<pre class="sample-evidence">' + evidence + '</pre>' : '') +
+        '<div class="vote-row">' +
+          '<button class="vote-btn keep">Keep</button>' +
+          '<button class="vote-btn suppress">Suppress</button>' +
+        '</div>';
+      var keepBtn = card.querySelector('.vote-btn.keep');
+      var supBtn = card.querySelector('.vote-btn.suppress');
+      keepBtn.addEventListener('click', function() {
+        currentSampleVotes[fid] = 'keep';
+        keepBtn.classList.add('voted-keep'); supBtn.classList.remove('voted-suppress');
+        updateSampleTally(samples.length, rule, glob);
+      });
+      supBtn.addEventListener('click', function() {
+        currentSampleVotes[fid] = 'suppress';
+        supBtn.classList.add('voted-suppress'); keepBtn.classList.remove('voted-keep');
+        updateSampleTally(samples.length, rule, glob);
+      });
+      sampleBody.appendChild(card);
+    });
+    updateSampleTally(samples.length, rule, glob);
+  }
+
+  function updateSampleTally(total, rule, glob) {
+    var votes = Object.values(currentSampleVotes);
+    var voted = votes.length;
+    var suppress = votes.filter(function(v) { return v === 'suppress'; }).length;
+    var keep = votes.filter(function(v) { return v === 'keep'; }).length;
+    var remaining = total - voted;
+    var pctSuppress = voted === 0 ? 0 : Math.round(100 * suppress / voted);
+    var msg = voted + '/' + total + ' voted · ' + keep + ' keep · ' + suppress + ' suppress';
+    if (remaining > 0) msg += ' · ' + remaining + ' to go';
+    else if (pctSuppress >= 80) {
+      msg += ' — ' + pctSuppress + '% suppress. Cluster suppress recommended.';
+      sampleSuppressBtn.disabled = false;
+    } else {
+      msg += ' — ' + pctSuppress + '% suppress. Mixed results; recommend per-finding review.';
+      sampleSuppressBtn.disabled = true;
+    }
+    sampleTally.textContent = msg;
+  }
+
+  document.querySelectorAll('.review-samples-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var clusterRow = btn.closest('details.cluster-row');
+      if (!clusterRow) return;
+      var rule = clusterRow.getAttribute('data-rule') || '';
+      var glob = clusterRow.getAttribute('data-glob') || '';
+      var all = collectClusterFindings(rule, glob);
+      if (all.length === 0) {
+        showToast('No findings in DOM for this cluster — switch to flat view.');
+        return;
+      }
+      var samples = sampleRandom(all, Math.min(5, all.length));
+      currentSampleCluster = { rule: rule, glob: glob };
+      sampleSuppressBtn.disabled = true;
+      sampleTitle.textContent = 'Review samples — ' + rule;
+      renderSamplesIntoModal(samples, rule, glob);
+      sampleModal.classList.add('open');
+    });
+  });
+
+  sampleCloseBtn.addEventListener('click', function() {
+    sampleModal.classList.remove('open');
+  });
+  sampleModal.addEventListener('click', function(e) {
+    if (e.target === sampleModal) sampleModal.classList.remove('open');
+  });
+  sampleSuppressBtn.addEventListener('click', function() {
+    if (sampleSuppressBtn.disabled) return;
+    if (!currentSampleCluster) return;
+    var reason = prompt('Reason for suppressing entire cluster (sample review recommended this)?');
+    if (!reason || !reason.trim()) return;
+    var match = { rule: currentSampleCluster.rule };
+    if (currentSampleCluster.glob) match.file_glob = currentSampleCluster.glob;
+    stageEntry({ match: match, scope: 'project', reason: reason.trim() });
+    showToast('Cluster staged from sample review. ' + stagedList.length + ' total.');
+    sampleModal.classList.remove('open');
+  });
 
   // Cluster suppress buttons
   document.querySelectorAll('.suppress-cluster-btn').forEach(function(btn) {
@@ -1203,6 +1496,7 @@ def render_clusters_section(clusters: list, total_findings: int) -> str:
       <span class="cluster-path">{esc(glob)}</span>
       <span class="cluster-count">{c["active_count"]} active{suppressed_note}</span>
       <span class="cluster-severities">{sev_breakdown}</span>
+      <button class="review-samples-btn" data-cluster-index="{i}" title="Open a modal with 5 random samples from this cluster and vote keep/suppress per sample">Review samples</button>
       <button class="suppress-cluster-btn" data-cluster-index="{i}" title="Stage a pattern-based suppression for this entire cluster">Suppress entire cluster</button>
     </summary>
     <div class="cluster-body">
@@ -1370,6 +1664,14 @@ def render_findings_section(findings: list) -> str:
         key=lambda p: (file_rank(by_file[p]), -len(by_file[p]), p),
     )
 
+    # v1.2.0 smart-collapse: for large reports, render file-groups collapsed
+    # by default. The browser doesn't render article cards inside collapsed
+    # <details> until expanded — near-free virtualization for the common
+    # case of many small files. The threshold matches design.md §3.9's
+    # "DOM-level virtualization" deferral.
+    SMART_COLLAPSE_THRESHOLD = 500
+    collapse_by_default = len(findings) > SMART_COLLAPSE_THRESHOLD
+
     blocks: list = []
     for path in sorted_files:
         items = by_file[path]
@@ -1380,17 +1682,29 @@ def render_findings_section(findings: list) -> str:
         body = "".join(render_finding(f) for f in items)
         count = len(items)
         plural = "s" if count != 1 else ""
+        open_attr = "" if collapse_by_default else " open"
         blocks.append(f"""
-  <details class="file-group" open>
+  <details class="file-group"{open_attr}>
     <summary>
       <span class="file-name">{esc(path)}</span>
       <span class="file-count">{count} finding{plural}</span>
     </summary>
     {body}
   </details>""")
+
+    collapse_toolbar = ""
+    if collapse_by_default:
+        collapse_toolbar = f"""
+  <div class="collapse-toolbar">
+    <span class="muted">Large report — {len(findings)} findings across {len(sorted_files)} files. File groups collapsed by default to keep the browser responsive.</span>
+    <button id="btn-expand-visible">Expand all visible</button>
+    <button id="btn-collapse-all">Collapse all</button>
+  </div>"""
+
     return f"""
   <section>
     <h2>Findings</h2>
+    {collapse_toolbar}
     {''.join(blocks)}
   </section>
 """
@@ -1628,6 +1942,19 @@ def render(findings: list, manifest: dict, suppressions_entries: list | None = N
       <div id="staging-review-body"></div>
       <div style="margin-top: 16px; text-align: right">
         <button id="btn-close-review">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sample-review" class="sample-review" role="dialog" aria-modal="true" aria-label="Sample-assisted cluster review">
+    <div class="modal">
+      <h2 id="sample-review-title">Review samples</h2>
+      <p class="muted">Vote keep/suppress on each sample. If ≥80% vote suppress, you can stage a pattern-based suppression for the entire cluster. Otherwise, recommend per-finding review.</p>
+      <div id="sample-review-body"></div>
+      <div id="sample-review-tally" class="tally"></div>
+      <div class="modal-actions">
+        <button id="btn-close-sample-review">Close</button>
+        <button id="btn-suppress-from-sample" class="primary" disabled>Suppress entire cluster</button>
       </div>
     </div>
   </div>
