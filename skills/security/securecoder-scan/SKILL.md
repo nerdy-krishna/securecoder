@@ -545,11 +545,17 @@ Export the variables before calling: `RUN_ID`, `STARTED_AT`, `PROJECT_ROOT`, `RE
 ### A.10 Render the markdown and HTML reports
 
 ```bash
+SUPPRESSIONS_ARG=""
+if [ -f "$PROJECT_ROOT/.securecoder/suppressions.json" ]; then
+  SUPPRESSIONS_ARG="--suppressions $PROJECT_ROOT/.securecoder/suppressions.json"
+fi
+
 python3 "<skill-dir>/scripts/render_markdown.py" "$RUN_DIR/findings.jsonl" \
   --manifest "$RUN_DIR/manifest.json" --output "$RUN_DIR/report.md"
 
 python3 "<skill-dir>/scripts/render_html.py" "$RUN_DIR/findings.jsonl" \
-  --manifest "$RUN_DIR/manifest.json" --output "$RUN_DIR/report.html"
+  --manifest "$RUN_DIR/manifest.json" $SUPPRESSIONS_ARG \
+  --output "$RUN_DIR/report.html"
 ```
 
 The HTML report is self-contained: inlined CSS in a `<style>` block, inlined filtering JS in a `<script>` block, no external resources. It includes client-side filtering by severity / source / framework and a free-text search across file path / title / description / evidence. Opens in any modern browser with networking disabled.

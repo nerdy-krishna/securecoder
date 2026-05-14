@@ -481,6 +481,73 @@ CSS = """
     padding: 3px 0;
   }
   .muted { color: var(--fg-mute); font-size: 12px; }
+
+  /* ─── Slice 11.F polish ─── */
+  article.finding.suppressed-finding {
+    opacity: 0.55;
+    border-left: 3px solid var(--info);
+  }
+  article.finding.suppressed-finding .badge {
+    opacity: 0.6;
+  }
+  .suppression-banner {
+    background: var(--bg-elev);
+    border-left: 3px solid var(--info);
+    padding: 6px 10px;
+    margin: 6px 0;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--fg-mute);
+  }
+  .suppression-banner code { background: transparent; padding: 0; }
+  .advisory-banner {
+    background: var(--bg-elev);
+    border: 1px solid var(--med);
+    border-left: 4px solid var(--med);
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .advisory-banner .title {
+    font-weight: 600;
+    margin-right: 8px;
+    color: var(--med);
+  }
+  .stale-banner {
+    background: var(--bg-elev);
+    border: 1px solid var(--fg-mute);
+    border-left: 4px solid var(--fg-mute);
+    padding: 10px 16px;
+    border-radius: 4px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+  .show-suppressed-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    margin: 8px 0;
+    cursor: pointer;
+    color: var(--fg-mute);
+    user-select: none;
+  }
+  body.hide-suppressed article.finding.suppressed-finding { display: none; }
+  /* Hidden file groups inside hide-suppressed mode also need to collapse */
+  body.hide-suppressed details.file-group:not(:has(article.finding:not(.suppressed-finding))) {
+    display: none;
+  }
+  .suppressions-section {
+    margin-top: 24px;
+  }
+  .suppressions-section table {
+    width: 100%;
+  }
+  .suppressions-section td.match-col {
+    font-family: SFMono-Regular, Consolas, monospace;
+    font-size: 12px;
+  }
 """
 
 
@@ -772,6 +839,19 @@ JS = """
     document.querySelectorAll('.multiselect-checkbox').forEach(function(cb) { cb.checked = false; });
     updateMultiselectBar();
   });
+
+  // Show-suppressed toggle
+  var showSupTog = document.getElementById('toggle-show-suppressed');
+  if (showSupTog) {
+    showSupTog.addEventListener('change', function() {
+      if (showSupTog.checked) {
+        document.body.classList.remove('hide-suppressed');
+      } else {
+        document.body.classList.add('hide-suppressed');
+      }
+      refresh();
+    });
+  }
 
   // View tab switching (flat findings ↔ clusters)
   var flatView = document.getElementById('findings-view');
@@ -1208,16 +1288,32 @@ def render_finding(f: dict) -> str:
     fid = f.get("id") or ""
     rule_id = f.get("source_rule_id", "")
     file_path = f.get("file", "")
+    status = f.get("status", "open")
+    suppression_reason = f.get("suppression_reason", "")
+    suppression_match = f.get("suppression_match", "")
+
+    suppressed_cls = " suppressed-finding" if status == "suppressed" else ""
+    suppression_banner = ""
+    if status == "suppressed":
+        suppression_banner = (
+            f'<div class="suppression-banner">'
+            f'<strong>Suppressed</strong> &middot; '
+            f'reason: {esc(suppression_reason or "(no reason)")} '
+            f'&middot; match: <code>{esc(suppression_match)}</code>'
+            f'</div>'
+        )
 
     return f"""
-  <article class="finding"
+  <article class="finding{suppressed_cls}"
     data-severity="{esc(severity)}"
     data-source="{esc(source)}"
     data-frameworks="{esc(framework_attr)}"
     data-text="{esc(haystack)}"
     data-finding-id="{esc(fid)}"
     data-rule="{esc(rule_id)}"
-    data-file="{esc(file_path)}">
+    data-file="{esc(file_path)}"
+    data-status="{esc(status)}">
+    {suppression_banner}
     <div class="finding-header">
       <input type="checkbox" class="multiselect-checkbox" data-finding-id="{esc(fid)}" title="Select for batch suppress" />
       <span class="badge {esc(severity)}">{esc(SEV_LABELS.get(severity, severity))}</span>
@@ -1327,11 +1423,94 @@ def render_manifest_footer(manifest: dict) -> str:
 """
 
 
-def render(findings: list, manifest: dict) -> str:
+def render_advisory_banner(findings: list) -> str:
+    """When one severity dominates (>1000 findings of a single severity), nudge
+    the user toward severity-floor adjustments or the cluster view."""
+    sev_counts = Counter(f.get("severity", "info") for f in findings)
+    for sev in SEV_ORDER:
+        if sev_counts.get(sev, 0) > 1000:
+            return (
+                f'<div class="advisory-banner">'
+                f'<span class="title">Heads up.</span> {sev_counts[sev]} '
+                f'<strong>{SEV_LABELS.get(sev, sev)}</strong> findings dominate this report. Options:<br>'
+                f'&middot; Raise <code>severity_floor</code> to <code>{sev}</code>+ in '
+                f'<code>.securecoder/config.json</code><br>'
+                f'&middot; Switch to <strong>Clusters</strong> view above to triage by pattern<br>'
+                f'&middot; Ask <code>/securecoder-advise</code> whether {sev} findings are actionable for your team'
+                f'</div>'
+            )
+    return ""
+
+
+def render_stale_banner(manifest: dict, suppressions_entries: list) -> str:
+    """Surface entries from suppressions.json that didn't match anything this
+    run — likely stale and ready for cleanup."""
+    by_entry = manifest.get("suppressed_by_entry", {}) or {}
+    if not suppressions_entries or not by_entry:
+        return ""
+    stale: list = []
+    for i, entry in enumerate(suppressions_entries):
+        if int(by_entry.get(str(i), 0)) == 0 and not entry.get("expires_at"):
+            stale.append((i, entry))
+    # Note: expired entries are excluded from "stale" — they're listed separately
+    # via /securecoder-suppress show expired
+    if not stale:
+        return ""
+    items_html = "".join(
+        f'<li><code>#{i}</code> {esc(", ".join(f"{k}={v}" for k, v in (e.get("match") or {}).items()))} — '
+        f'<em>{esc(e.get("reason", "(no reason)"))}</em></li>'
+        for i, e in stale[:5]
+    )
+    extra_count = max(0, len(stale) - 5)
+    extra = f"<li>… and {extra_count} more</li>" if extra_count > 0 else ""
+    return (
+        f'<div class="stale-banner">'
+        f'<strong>{len(stale)} suppression entries</strong> didn\'t match any finding this run — they may be stale.<br>'
+        f'<ul style="margin: 6px 0 0 16px; padding: 0">{items_html}{extra}</ul>'
+        f'Review with <code>/securecoder-suppress show stale</code>.'
+        f'</div>'
+    )
+
+
+def render_suppressions_section(suppressions_entries: list, manifest: dict) -> str:
+    """Bottom-of-report Suppressions table — every active entry with match,
+    reason, audit metadata, and the count of findings it caught this run."""
+    if not suppressions_entries:
+        return ""
+    by_entry = manifest.get("suppressed_by_entry", {}) or {}
+    rows: list = []
+    for i, entry in enumerate(suppressions_entries):
+        match = entry.get("match") or {}
+        match_str = ", ".join(f"{k}={v!r}" for k, v in match.items())
+        caught = by_entry.get(str(i), 0)
+        rows.append(
+            f"<tr>"
+            f"<td>#{i}</td>"
+            f"<td class=\"match-col\">{esc(match_str)}</td>"
+            f"<td>{esc(entry.get('reason', ''))}</td>"
+            f"<td>{esc(entry.get('created_at', '?'))}<br><span class=\"muted\">by {esc(entry.get('created_by', '?'))}</span></td>"
+            f"<td>{esc(entry.get('expires_at') or '(none)')}</td>"
+            f"<td>{caught}</td>"
+            f"</tr>"
+        )
+    return f"""
+  <section class="suppressions-section">
+    <h2>Suppressions ({len(suppressions_entries)} active)</h2>
+    <table>
+      <thead><tr><th>#</th><th>Match</th><th>Reason</th><th>Created</th><th>Expires</th><th>Caught this run</th></tr></thead>
+      <tbody>{''.join(rows)}</tbody>
+    </table>
+  </section>
+"""
+
+
+def render(findings: list, manifest: dict, suppressions_entries: list | None = None) -> str:
+    suppressions_entries = suppressions_entries or []
     framework_options = collect_framework_options(findings)
     source_options = sorted({f.get("source", "") for f in findings if f.get("source")})
     clusters = compute_clusters(findings)
     cluster_count = len(clusters)
+    has_any_suppressed = any(f.get("status") == "suppressed" for f in findings)
 
     sev_options = "".join(
         f'<option value="{s}">{SEV_LABELS[s]}</option>' for s in SEV_ORDER
@@ -1361,7 +1540,7 @@ def render(findings: list, manifest: dict) -> str:
   <title>{esc(title)}</title>
   <style>{CSS}</style>
 </head>
-<body data-run-id="{esc(run_id)}">
+<body data-run-id="{esc(run_id)}" class="{'hide-suppressed' if has_any_suppressed else ''}">
   <header>
     <h1>securecoder scan report</h1>
     <div class="meta meta-row">
@@ -1376,6 +1555,8 @@ def render(findings: list, manifest: dict) -> str:
   </header>
 
 {render_summary(findings)}
+{render_advisory_banner(findings)}
+{render_stale_banner(manifest, suppressions_entries)}
 {render_trend(manifest.get("trend"))}
 {render_phases(manifest)}
 
@@ -1405,6 +1586,7 @@ def render(findings: list, manifest: dict) -> str:
       </label>
     </div>
     <p class="result-count">Showing <span id="visible-count">{len(findings)}</span> of {len(findings)} finding{'s' if len(findings) != 1 else ''}</p>
+    {f'<label class="show-suppressed-toggle"><input type="checkbox" id="toggle-show-suppressed" />Show suppressed findings ({sum(1 for fnd in findings if fnd.get("status") == "suppressed")} hidden)</label>' if has_any_suppressed else ''}
   </section>
 
   <div id="multiselect-bar" class="multiselect-bar">
@@ -1425,6 +1607,8 @@ def render(findings: list, manifest: dict) -> str:
   </section>
 
 {render_clusters_section(clusters, len(findings))}
+
+{render_suppressions_section(suppressions_entries, manifest)}
 {render_manifest_footer(manifest)}
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -1463,6 +1647,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("findings", help="Path to findings.jsonl")
     ap.add_argument("--manifest", required=True, help="Path to manifest.json")
+    ap.add_argument("--suppressions",
+                    help="Optional path to .securecoder/suppressions.json. "
+                         "Populates the Suppressions section at the bottom of "
+                         "the report and the stale-suppression banner near the top.")
     ap.add_argument("--output", "-o", help="Write HTML here instead of stdout")
     args = ap.parse_args()
 
@@ -1470,7 +1658,15 @@ def main() -> None:
     with open(args.manifest, encoding="utf-8") as f:
         manifest = json.load(f)
 
-    rendered = render(findings, manifest)
+    suppressions_entries: list = []
+    if args.suppressions:
+        try:
+            sup_blob = json.loads(Path(args.suppressions).read_text(encoding="utf-8"))
+            suppressions_entries = sup_blob.get("entries", []) or []
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    rendered = render(findings, manifest, suppressions_entries)
     if args.output:
         Path(args.output).write_text(rendered, encoding="utf-8")
     else:

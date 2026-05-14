@@ -124,10 +124,13 @@ def render(findings: list[dict], manifest: dict) -> str:
             out.append(f"- **Persistent findings:** {summary.get('persistent_count', 0)}")
         out.append("")
 
-    # --- Findings
-    if findings:
+    # --- Findings (active only; suppressed go to the collapsed section below)
+    active_findings = [f for f in findings if f.get("status") != "suppressed"]
+    suppressed_findings = [f for f in findings if f.get("status") == "suppressed"]
+
+    if active_findings:
         by_file: dict[str, list[dict]] = defaultdict(list)
-        for f in findings:
+        for f in active_findings:
             by_file[f.get("file", "(unknown)")].append(f)
 
         def file_rank(items: list[dict]) -> int:
@@ -190,7 +193,25 @@ def render(findings: list[dict], manifest: dict) -> str:
                 out.append("")
     else:
         out.append("## Findings\n")
-        out.append("No findings. Clean scan.\n")
+        out.append("No active findings. Clean scan.\n")
+
+    # --- Suppressed findings (collapsed list at the end)
+    if suppressed_findings:
+        out.append("")
+        out.append(f"<details><summary><strong>Suppressed findings ({len(suppressed_findings)})</strong></summary>\n")
+        for f in suppressed_findings:
+            lines = f.get("lines") or {}
+            start = lines.get("start", "?")
+            title = f.get("title") or f.get("source_rule_id", "")
+            reason = f.get("suppression_reason") or "(no reason)"
+            match = f.get("suppression_match") or "?"
+            out.append(
+                f"- `{f.get('severity', 'info').upper()}` **{title}** — "
+                f"`{f.get('file', '?')}`:L{start}  ·  "
+                f"ID `{(f.get('id') or '')[:12]}…`  \n"
+                f"  - suppressed by `{match}` — reason: {reason}"
+            )
+        out.append("</details>\n")
 
     # --- Manifest footer
     out.append("## Manifest\n")
