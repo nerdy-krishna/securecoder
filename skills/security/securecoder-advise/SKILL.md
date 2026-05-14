@@ -38,10 +38,11 @@ If the framework cache is empty, surface that explicitly:
 Ask:
 
 > What would you like to ask about?
->   [general]   General security Q&A grounded in framework markdown
->   [findings]  Q&A about the findings in your latest scan
->   [deep-dive] Deep-dive on a specific finding ID (you'll be asked for it)
->   [lookup]    Look up a specific control (e.g. "explain ASVS V1.2.1")
+>   [general]      General security Q&A grounded in framework markdown
+>   [findings]     Q&A about the findings in your latest scan
+>   [deep-dive]    Deep-dive on a specific finding ID (you'll be asked for it)
+>   [lookup]       Look up a specific control (e.g. "explain ASVS V1.2.1")
+>   [suppressions] Show / explain current suppressions
 
 Route based on selection.
 
@@ -76,6 +77,41 @@ Ask the user for a finding ID (the agent can disambiguate from the 8-char prefix
 3. For each entry in `framework_refs`, read the corresponding chapter from cached framework markdown and quote the actual control text.
 4. Provide remediation guidance combining the finding's `remediation_hint` with relevant cheatsheet sections (when cheatsheets are in the framework cache).
 5. Recommend the next action: `/securecoder-fix <finding-id>` or manual fix steps.
+
+## Mode: Suppressions Q&A (v1.1.0)
+
+Two natural-language intents the agent should recognize and dispatch:
+
+### "Show all current suppressions"
+
+When the user asks "what's currently suppressed?", "list suppressions", or selects the `suppressions` mode:
+
+1. Read `.securecoder/suppressions.json` (it lives at `<PROJECT_ROOT>/.securecoder/suppressions.json`).
+2. Read `.securecoder/runs/latest/manifest.json` for the `suppressed_by_entry` counts (how many findings each entry matched in the most recent run).
+3. Present a table or numbered list with: index, match expression, reason, created_at, created_by, expires_at, caught-this-run count.
+4. Flag stale entries (those with `suppressed_by_entry[i] == 0` and no expires_at) — suggest the user runs `/securecoder-suppress show stale` or considers removing them.
+5. Flag expired entries (those past `expires_at`) — suggest `/securecoder-suppress show expired` / `expire`.
+
+### "Why is finding X suppressed?"
+
+When the user asks "why is finding 5823722d suppressed?" or pastes a finding ID:
+
+1. Read `.securecoder/runs/latest/findings.jsonl` and locate the finding by ID (full or 8-char prefix match).
+2. If `status != "suppressed"`: report the current status and exit ("Finding 5823722d is currently `open`; no suppression applies").
+3. If `status == "suppressed"`: read the finding's `suppression_match` field (format `suppressions.json#<index>`). Read the entry from `.securecoder/suppressions.json` at that index.
+4. Report:
+   - The finding's evidence + title + file:line
+   - The entry's verbatim match expression + reason
+   - Who created it (`created_by`), when (`created_at`), and when it expires (`expires_at`)
+5. If the user asks "is this still relevant?": cross-reference the finding's current evidence with the entry's reason. If they look mismatched, surface the discrepancy ("the entry says 'test fixtures' but this finding is in src/api/; you may want to remove the entry").
+
+### "Why is finding X still appearing?"
+
+When the user asks "I just suppressed X, why is it still in the report?":
+
+1. Confirm `suppressions.json` contains an entry that should match.
+2. Note that effects materialize on the NEXT `/securecoder-scan` run — the suppression doesn't retroactively update the current `findings.jsonl`. Tell the user to re-run `/securecoder-scan`.
+3. If they ran a scan and it's still appearing: check whether the entry's match criteria actually match the finding (rule + file_glob + id). Common pitfalls: a stale canonical ID (line shifted), a file_glob that doesn't cover the file path, framework_ref mismatch.
 
 ## Mode: Framework lookup
 
