@@ -421,6 +421,28 @@ done
 
 Canonical IDs are deterministic and per-tool prefixes in `source` keep cross-tool collisions impossible.
 
+### A.7.5 Apply suppressions
+
+If `.securecoder/suppressions.json` exists, mark matching findings as suppressed in-place. See [`docs/design.md` § 3.9](../../../docs/design.md) for the matching semantics and most-specific-wins resolution.
+
+```bash
+SUPPRESSIONS_PATH="$PROJECT_ROOT/.securecoder/suppressions.json"
+if [ -f "$SUPPRESSIONS_PATH" ]; then
+  python3 "<skill-dir>/scripts/apply_suppressions.py" \
+    "$RUN_DIR/findings.jsonl" \
+    --suppressions "$SUPPRESSIONS_PATH" \
+    --output "$RUN_DIR/findings.jsonl" \
+    --stats "$RUN_DIR/_suppression_stats.json"
+else
+  # No suppressions file = no-op; create an empty stats record so the
+  # manifest writer below has a consistent input.
+  echo '{"totals":{"findings":0,"findings_active":0,"findings_suppressed":0},"suppressed_by_entry":{}}' \
+    > "$RUN_DIR/_suppression_stats.json"
+fi
+```
+
+Findings matching a suppression get `status: "suppressed"`, plus two new fields: `suppression_reason` (the winning entry's reason) and `suppression_match` (e.g., `suppressions.json#3`, where `3` is the entry index). Expired entries (past their `expires_at`) are ignored at match time but remain in `suppressions.json` for audit. `_suppression_stats.json` feeds the manifest builder in A.9.
+
 ### A.8 Compute the trend vs prior runs
 
 Before writing the manifest, compare this run's findings to the most recent prior run in `.securecoder/runs/`:
@@ -470,6 +492,11 @@ for tool, friendly in [("semgrep","semgrep"),("bandit","bandit"),
   }
 
 trend = load_json(f"{run_dir}/_trend.json")
+sup_stats = load_json(f"{run_dir}/_suppression_stats.json", default={}) or {}
+sup_totals = sup_stats.get("totals", {})
+suppressed_by_entry = sup_stats.get("suppressed_by_entry", {})
+
+total_findings = count(f"{run_dir}/findings.jsonl")
 
 manifest = {
   "schema_version": "1.0",
@@ -492,15 +519,18 @@ manifest = {
   "phases": {
     "sast": {
       "duration_s": sum(t["duration_s"] for t in per_tool.values()),
-      "findings": count(f"{run_dir}/findings.jsonl"),
+      "findings": total_findings,
       "input_tokens": 0,
       "output_tokens": 0,
       "per_tool": per_tool,
     }
   },
   "trend": trend,
+  "suppressed_by_entry": suppressed_by_entry,
   "totals": {
-    "findings": count(f"{run_dir}/findings.jsonl"),
+    "findings": total_findings,
+    "findings_active": sup_totals.get("findings_active", total_findings),
+    "findings_suppressed": sup_totals.get("findings_suppressed", 0),
     "duration_s": sum(t["duration_s"] for t in per_tool.values())
   }
 }
