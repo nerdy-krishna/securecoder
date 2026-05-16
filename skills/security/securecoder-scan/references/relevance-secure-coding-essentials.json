@@ -1,0 +1,84 @@
+{
+  "_about": "Per-chapter applicability for the secure-coding-essentials baseline framework. Seven of nine chapters apply to all languages. SCE-MEM and SCE-INT are split: applies_to_languages lists the languages where the chapter applies unconditionally; conditional_languages lists additional languages where the chapter applies only when a keyword_trigger is found in the file (the FFI / unsafe escape hatch). See docs/design.md §3.10.",
+  "_schema_version": "1.0",
+  "_chapters": {
+    "SCE-MEM": {
+      "id": "SCE-MEM",
+      "title": "Memory Safety",
+      "filename": "SCE-MEM.md",
+      "applies_to_languages": ["c", "cpp", "rust", "zig", "objective-c", "assembly"],
+      "conditional_languages": {
+        "languages": ["python", "javascript", "typescript", "ruby", "java", "kotlin", "go", "csharp", "php", "swift"],
+        "keyword_triggers": ["ctypes", "cffi", "unsafe", "jni", "cgo", "marshal", "unsafe.Pointer", "Buffer", "memoryview", "NativeModules", "extern"]
+      },
+      "keyword_triggers": []
+    },
+    "SCE-INT": {
+      "id": "SCE-INT",
+      "title": "Integer Handling",
+      "filename": "SCE-INT.md",
+      "applies_to_languages": ["c", "cpp", "rust", "go", "java", "kotlin", "csharp", "swift", "zig", "objective-c"],
+      "conditional_languages": {
+        "languages": ["python", "javascript", "typescript", "ruby", "php"],
+        "keyword_triggers": ["struct.pack", "struct.unpack", "to_bytes", "from_bytes", "& 0xff", "<<", ">>", "ctypes", "Buffer.alloc", "DataView", "Int32Array"]
+      },
+      "keyword_triggers": []
+    },
+    "SCE-INPUT": {
+      "id": "SCE-INPUT",
+      "title": "Input Validation and Untrusted Data",
+      "filename": "SCE-INPUT.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css"],
+      "keyword_triggers": []
+    },
+    "SCE-INJECT": {
+      "id": "SCE-INJECT",
+      "title": "Injection Prevention",
+      "filename": "SCE-INJECT.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css"],
+      "keyword_triggers": []
+    },
+    "SCE-ERR": {
+      "id": "SCE-ERR",
+      "title": "Error and Exception Handling",
+      "filename": "SCE-ERR.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css", "json", "yaml", "toml"],
+      "keyword_triggers": []
+    },
+    "SCE-RES": {
+      "id": "SCE-RES",
+      "title": "Resource Management",
+      "filename": "SCE-RES.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css", "json", "yaml", "toml", "html"],
+      "keyword_triggers": []
+    },
+    "SCE-CONC": {
+      "id": "SCE-CONC",
+      "title": "Concurrency and Races",
+      "filename": "SCE-CONC.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css", "json", "yaml", "toml", "html"],
+      "keyword_triggers": []
+    },
+    "SCE-CRYPTO": {
+      "id": "SCE-CRYPTO",
+      "title": "Cryptography and Secrets",
+      "filename": "SCE-CRYPTO.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css"],
+      "keyword_triggers": []
+    },
+    "SCE-ACCESS": {
+      "id": "SCE-ACCESS",
+      "title": "Access Control and Privilege",
+      "filename": "SCE-ACCESS.md",
+      "applies_to_languages": ["all"],
+      "excludes_languages": ["markdown", "css", "json", "yaml", "toml", "html"],
+      "keyword_triggers": []
+    }
+  }
+}

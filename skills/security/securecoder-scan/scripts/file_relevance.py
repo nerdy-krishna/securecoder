@@ -33,25 +33,45 @@ from pathlib import Path
 
 
 def file_matches_chapter(file_record: dict, chapter: dict, content: str) -> bool:
-    """True if (file, chapter) is a relevant pair to evaluate."""
-    lang = file_record.get("language", "")
-    applies = chapter.get("applies_to_languages", [])
-    excludes = chapter.get("excludes_languages", [])
-    triggers = chapter.get("keyword_triggers", []) or []
+    """True if (file, chapter) is a relevant pair to evaluate.
 
-    # Language fit
-    if "all" not in applies and lang not in applies:
-        return False
+    Resolution order:
+      1. excludes_languages — hard exclude, wins over everything.
+      2. Unconditional fit — language in applies_to_languages (or "all"),
+         optionally gated by keyword_triggers when that list is non-empty.
+      3. Conditional fit — language in conditional_languages.languages AND
+         the file contains one of conditional_languages.keyword_triggers.
+         This is the FFI / unsafe escape hatch: a chapter that applies
+         unconditionally to systems languages can still apply to a
+         memory-managed language when that file does FFI or unsafe work.
+    """
+    lang = file_record.get("language", "")
+    applies = chapter.get("applies_to_languages", []) or []
+    excludes = chapter.get("excludes_languages", []) or []
+    triggers = chapter.get("keyword_triggers", []) or []
+    conditional = chapter.get("conditional_languages", {}) or {}
+
+    # 1. Hard exclude
     if lang in excludes:
         return False
 
-    # Keyword trigger fit (only enforced when triggers are non-empty)
-    if triggers:
-        haystack = content.lower()
-        if not any(t.lower() in haystack for t in triggers):
-            return False
+    haystack = content.lower()
 
-    return True
+    # 2. Unconditional fit
+    if "all" in applies or lang in applies:
+        # keyword_triggers, when present, gate even the unconditional set
+        if triggers and not any(t.lower() in haystack for t in triggers):
+            return False
+        return True
+
+    # 3. Conditional fit (escape hatch for languages outside applies_to)
+    cond_langs = conditional.get("languages", []) or []
+    cond_triggers = conditional.get("keyword_triggers", []) or []
+    if lang in cond_langs and cond_triggers:
+        if any(t.lower() in haystack for t in cond_triggers):
+            return True
+
+    return False
 
 
 def main() -> None:

@@ -656,9 +656,23 @@ The framework registry at `<skill-dir>/references/frameworks.json` declares supp
 
 For each active framework that's `scannable: true`, run Phases B.1–B.6 below in turn. Each framework writes its findings into the same merged `findings.jsonl`. Cheatsheets (when enabled) are fetched but not scanned.
 
-### B.1 Fetch the ASVS chapter content
+### B.1 Resolve the framework's chapter content
 
-Pinned upstream: **`OWASP/ASVS` at branch `master`** (the OWASP repo doesn't tag every release; we content-address by the resulting SHA, same model as the Semgrep rule pack).
+A framework's `frameworks.json` entry has a `source` field. Two cases:
+
+**`source: "bundled"`** (e.g., `secure-coding-essentials`) — the chapters ship inside this skill. No fetch. Point `CHAPTERS_DIR` straight at the bundled path:
+
+```bash
+# For a bundled framework, e.g. secure-coding-essentials:
+CHAPTERS_DIR="<skill-dir>/$(framework's bundled_path from frameworks.json)"
+# e.g. <skill-dir>/references/frameworks/secure-coding-essentials
+```
+
+There is no SHA, no cache dir, no network — skip directly to B.2 with `CHAPTERS_DIR` set. Bundled frameworks are always available offline.
+
+**`source: <git URL>`** (e.g., `asvs-v5`) — fetch + cache as below.
+
+Pinned upstream for ASVS: **`OWASP/ASVS` at branch `master`** (the OWASP repo doesn't tag every release; we content-address by the resulting SHA, same model as the Semgrep rule pack).
 
 ```bash
 ASVS_REPO="https://github.com/OWASP/ASVS.git"
@@ -753,12 +767,14 @@ For each pair in `_compliance_pairs.json`:
 
 2. **Dispatch the LLM call.** This is a single host-LLM turn. The host agent reads the composed prompt and produces the response. Save the response to `$RUN_DIR/_compliance/<NNNN>_<chapter_id>_<file-slug>.md`. (Pad the index to 4 digits.)
 
-3. **Validate the coverage matrix.**
+3. **Validate the coverage matrix.** Pass the framework's control-ID regexes from its `frameworks.json` entry (`control_id_regex` and `control_id_response_regex`) so validation works for ASVS's three-number IDs, MASVS's `MASVS-STORAGE-1` form, `secure-coding-essentials`'s `SCE-MEM-1` form, etc. When the regexes are omitted, validate_coverage defaults to the ASVS form.
 
    ```bash
    python3 "<skill-dir>/scripts/validate_coverage.py" \
      "$CHAPTERS_DIR/<chapter_filename>" \
      "$RUN_DIR/_compliance/<NNNN>_<chapter_id>_<file-slug>.md" \
+     --chapter-regex "<framework.control_id_regex>" \
+     --response-regex "<framework.control_id_response_regex>" \
      --json > "$RUN_DIR/_compliance/<NNNN>_validation.json"
    ```
 
