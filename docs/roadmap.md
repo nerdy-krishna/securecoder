@@ -1,69 +1,61 @@
 # Roadmap
 
-Forward-looking work. The CHANGELOG is the history of what shipped; this file is the queue of what's planned. Items here are deliberate deferrals — features and improvements considered but intentionally not in the current release.
+Forward-looking work. The CHANGELOG is the history of what shipped; this file is the queue of what's planned. Items here are deliberate deferrals — features considered but intentionally not in the current release.
 
-## v1.2.0 — next minor release
+Shipped releases (v0.1.0 → v1.2.1) are recorded in the [CHANGELOG](../CHANGELOG.md), not here.
+
+## v1.3.0 — in progress
+
+Framework fit + the universal baseline. ASVS / MASVS / Proactive Controls are all web/mobile-shaped; non-web code (C kernel routines, embedded, Rust, Go CLIs, ML pipelines) gets mostly N/A coverage and burns tokens. v1.3.0 closes the gap. Full design: [`docs/design.md` § 3.10](design.md).
 
 ### Planned features
 
-1. **`/securecoder-update` — version check + upgrade helper**
+1. **`secure-coding-essentials` — a universal baseline framework.**
+   Bundled in the skill repo (not fetched). Nine `SCE-*` chapters: Memory Safety, Integer Handling, Input Validation, Injection, Error Handling, Resource Management, Concurrency, Cryptography & Secrets, Access Control. Runs on every compliance scan as the `baseline` layer; ASVS/MASVS become `overlay` layers on top.
 
-   Tell the user what version of securecoder is installed and whether a newer release exists. Reasons it's not in v1.1.0: the eight-slice suppression sprint already filled v1.1.0, and a clean update story benefits from infrastructure that's worth a dedicated cut.
+2. **Fit-detection.**
+   A pre-flight step that scores each overlay framework by language-profile overlap. When an overlay falls below the (configurable, default 15%) fit threshold, the scan warns before the cost estimate, names the better-fitting framework, and offers run-recommended / run-as-configured / abort.
 
-   Proposed shape:
+### Slice plan
 
-   - Ship a `VERSION` file at the repo root containing the current tag (e.g., `v1.1.0`). The skills.sh installer copies it alongside `SKILL.md` files into the host agent's skill directory.
-   - New `/securecoder-update` skill (or `/securecoder-setup --check-updates` mode):
-     - Reads installed `VERSION`
-     - Queries `https://api.github.com/repos/nerdy-krishna/securecoder/releases/latest`
-     - Compares
-     - Reports: current vs latest, days since release, link to release notes, the exact install command to upgrade
-   - No automatic upgrade (security: the user always explicitly invokes the installer). The skill only surfaces info.
+- **13.A** — essentials framework content + registry (9 chapters, relevance JSON, `frameworks.json` entry, per-framework `control_id_regex` in `validate_coverage.py`, bundled-framework branch in the Phase B.1 fetcher). HITL — chapter wording.
+- **13.B** — fit-detection (`fit_check.py`, `target_languages`/`layer`/`signal_globs` in `frameworks.json`, pre-flight warning step).
+- **13.C** — baseline wiring + `/securecoder-setup` (implicit always-on, `baseline_enabled` opt-out, fit-threshold question).
+- **13.D** — docs + tests + release.
 
-   Smallest viable slice — ~50 LOC + a SKILL.md.
+## v1.4.0 — committed
 
-2. **DOM-level virtualized rendering for the flat findings list**
+1. **CERT C / C++ and domain-specific overlay frameworks.**
+   Deferred from the v1.3.0 grilling (option B). Systems code deserves a real, citable standard rather than only the universal baseline. The blocker is ingestion: CERT C lives on an SEI wiki, not as clean `git clone` markdown at a stable tag. v1.4.0 builds a wiki-scraping ingestion path that converts the CERT C / C++ rule pages into the chapter-markdown shape `frameworks.json` expects, cached content-addressed like the OWASP clones. Once that path exists, other domain standards (where licensing permits) can follow. MISRA stays out — paywalled.
 
-   Deferred from slice 11.F (v1.1.0). Plain-JS virtual scroll (~100 LOC) so 2000+ finding cards don't all live in the DOM at once. The cluster view is the current workaround for very large repos, but the flat view would be noticeably more responsive on big scans with this in.
+## Planned maintenance
 
-3. **Source-code comment annotations (`# securecoder: ignore`)**
+1. **Windows end-to-end validation.**
+   Path handling is implemented but only macOS + Linux were validated during development. Watch: pipx behavior, GitHub binary download for Windows release assets, `git config user.email` on git-for-windows, fnmatch slash handling.
 
-   Deferred from v1.1.0's suppression design. An alternative input layer alongside the config-file source of truth — for cases where developers want suppressions visible inline in the code. Implementation: walk the repo during scan, parse annotations into `apply_suppressions.py`'s effective entry list. Trust model: annotations are author-attributed via `git blame` rather than user-supplied `created_by`.
-
-4. **Sampling-assisted review for large clusters**
-
-   Deferred from v1.1.0. When a cluster has > 50 findings, offer "review N random samples, then decide on the whole cluster" as an alternative to expanding 3 samples. Adds an interactive mode to the cluster suppress button: opens a modal with 5–10 random findings, lets the user vote keep/suppress per sample, and only enables the cluster suppress if ≥ 80% voted suppress.
-
-### Planned maintenance
-
-1. **Backfill unit tests for v0.x helper scripts**
-
-   v1.1.0's slice 11.H shipped the project's first pytest suites — 22 tests covering `apply_suppressions.py` and `compute_clusters()`. The v0.x helpers (`normalize_<tool>.py` for all four SAST tools, `repo_walker.py`, `diff_scoper.py`, `render_markdown.py`, `render_html.py`, `validate_coverage.py`, `compute_trend.py`, `apply_patch.py`, `syntax_check.py`) still lack pytest coverage. Each is a pure-transform module — testable in isolation with synthetic input fixtures.
-
-2. **Windows end-to-end validation**
-
-   v1.0 path handling is implemented but only macOS + Linux were validated during development. Issues to watch: pipx behavior, GitHub binary download for Windows release assets, `git config user.email` on git-for-windows, fnmatch slash handling.
-
-3. **Promote `scripts/ci/pinned-tag-bumps.yml.template` to a live workflow**
-
-   v1.0.0 shipped the auto-PR bumper as a template (file at `scripts/ci/pinned-tag-bumps.yml.template`) because the skills.sh installer token lacks `workflow` scope. Manually moving it to `.github/workflows/` requires a workflow-scoped GitHub token. For v1.2.0 we wire a separate one-shot bootstrap step in the maintainer's repo setup that installs the workflow correctly, plus document the manual path for forks.
+2. **Promote `scripts/ci/pinned-tag-bumps.yml.template` to a live workflow.**
+   Shipped as a template because the skills.sh installer token lacks `workflow` scope. Moving it to `.github/workflows/` needs a workflow-scoped GitHub token — a one-shot maintainer bootstrap step, plus documented manual path for forks.
 
 ## Later / unscheduled
 
-These are good ideas without a target release. Open for community PRs or future bandwidth.
+Good ideas without a target release. Open for community PRs or future bandwidth.
 
-- **SARIF / JUnit / SPDX export from `findings.jsonl`.** Mechanical transforms. Useful for CI integrations that consume security-tool output via standard formats.
-- **Per-stack curated secure-scaffold guides for `/securecoder-build`.** Dropped from v1 scope per the Q14 design grilling. Would add `references/secure-scaffolds/python-fastapi.md`, etc., describing what "secure X" looks like per stack. Re-evaluate if v1 secure-build adoption shows users want this.
-- **Real-time live cost ticker.** asvs-shell-style per-LLM-call cost surface during compliance scans. Currently shown only at run end via manifest. Useful for long-running scans where users want a live spend indicator.
-- **Diff against previous run as a first-class feature.** Partially shipped in v0.4.0 (trend section in reports) but limited to canonical-ID matching. A richer diff view would show severity changes, evidence drift, and rule-pack version effects.
-- **`scope: "review-only"` suppression scope.** Suppress in `/securecoder-review` but still surface in full scans. Considered and explicitly rejected for v1.1.0 to keep the model simple; revisit if users ask for it.
-- **MCP integration for hosts that prefer MCP over slash commands.** Wrap the core commands as MCP tools. Most modern coding agents support both; the slash-command path is the primary one for now.
-- **`/securecoder-build` mid-session intervention.** Currently the policy block is emitted once at activation; the agent's context retention keeps it alive. For very long sessions where context drops, an agent-side hook could re-emit periodically. Requires host-specific hook APIs.
+- **DOM-level virtualized rendering for the flat findings list.** v1.2.0 shipped smart-collapse (file groups collapsed by default above 500 findings) as the stand-in. True virtual scroll (~100 LOC plain JS) would make the flat view responsive on any repo size; smart-collapse covers the common case well enough that this isn't urgent.
+- **Block-comment annotation syntax** (`/* securecoder: ignore */`). v1.2.0's annotations recognize `#` and `//` line comments only.
+- **SARIF / JUnit / SPDX export from `findings.jsonl`.** Mechanical transforms. Useful for CI integrations consuming security-tool output via standard formats.
+- **Per-stack curated secure-scaffold guides for `/securecoder-build`.** Dropped from v1 scope per the Q14 design grilling. Re-evaluate if secure-build adoption shows users want this.
+- **Real-time live cost ticker.** Per-LLM-call cost surface during compliance scans. Currently shown only at run end via manifest.
+- **Richer diff against previous run.** v0.4.0's trend section is canonical-ID matching only. A richer view would show severity changes, evidence drift, rule-pack version effects.
+- **`scope: "review-only"` suppression scope.** Suppress in `/securecoder-review` but still surface in full scans. Considered and rejected for v1.1.0 to keep the model simple; revisit if users ask.
+- **MCP integration** for hosts that prefer MCP tools over slash commands.
+- **`/securecoder-build` mid-session re-emit** for very long sessions where the policy block falls out of context. Requires host-specific hook APIs.
+- **Higher-coverage pytest** for the render functions and search helpers (currently smoke-tested via integration only).
 
 ## How items move between sections
 
-- **v1.2.0 items are committed.** They have a target release and are the next sprint.
-- **Later / unscheduled items are ideas.** They may move to a numbered release when a maintainer commits to them, or stay here indefinitely.
-- **Deletion happens** when an idea becomes obsolete (e.g., upstream solves the problem) or actively rejected.
+- **v1.3.0 items are in progress** — the current sprint.
+- **v1.4.0 items are committed** — a maintainer has agreed to build them; they have a target release.
+- **Later / unscheduled items are ideas** — they may move to a numbered release when a maintainer commits, or stay here indefinitely.
+- **Deletion happens** when an idea becomes obsolete or is actively rejected.
 
 A roadmap update PR can move items between sections, add new ones, or remove ideas that no longer make sense. Treat this file like the rest of the design docs — durable and reviewable.

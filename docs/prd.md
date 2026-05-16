@@ -124,6 +124,23 @@ Inter-skill communication is filesystem-only (run dirs, config files, cache). No
 93. As a developer with a finding ID I want to look up later, I want suppression entries to include `created_at` and `created_by` for accountability.
 94. As a developer extending securecoder, I want the suppression schema to support a `framework_ref` matcher so I can say "suppress all V1.2.1 findings in legacy/" with one entry.
 
+### v1.3.0 — framework fit + the secure-coding-essentials baseline
+
+95. As a developer scanning C / Rust / Go / embedded code, I want a compliance framework that actually applies, instead of ASVS producing pages of N/A coverage rows.
+96. As a developer running a compliance scan on non-web code, I want securecoder to warn me before it burns tokens on a poor-fit framework.
+97. As a developer who got a poor-fit warning, I want it to tell me which framework *would* fit, not just that the current one doesn't.
+98. As a developer auditing a kernel TCP-input routine, I want memory-safety, integer-overflow, and concurrency controls evaluated — that's where the real bugs are.
+99. As a developer on any codebase, I want a universal baseline of security controls that always runs regardless of domain, so memory and logic bugs are never missed because I picked the "wrong" framework.
+100. As a developer scanning a web app, I want the universal baseline to run alongside ASVS so I catch memory/logic issues ASVS underweights.
+101. As a developer upgrading from v1.2.x, I want the secure-coding-essentials baseline to start running automatically without me re-running `/securecoder-setup`.
+102. As a cost-conscious team, I want to be able to disable the baseline framework if we only want overlay coverage.
+103. As a developer at a repo with mixed languages, I want the fit threshold to be configurable so a small C extension to a Python app doesn't wrongly disable ASVS.
+104. As a developer getting a poor-fit warning, I want to drop the poor-fit framework for this run only, without permanently editing `.securecoder/config.json`.
+105. As a developer scanning a memory-managed-language file with `ctypes` / `unsafe` / JNI, I want the memory-safety chapter to still evaluate it — FFI reintroduces memory bugs.
+106. As a developer scanning a pure-Python web file, I want the memory-safety and integer chapters skipped so I'm not paying tokens for guaranteed-N/A rows.
+107. As a developer reading the report, I want findings from the baseline framework and the overlay framework both visible, each citing its own standard.
+108. As a developer extending securecoder, I want to add a new framework (bundled or fetched) by registering it in `frameworks.json` with `layer` and `target_languages`, without touching the architect prompt or validator.
+
 ## Implementation Decisions
 
 ### Architectural

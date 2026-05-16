@@ -387,10 +387,84 @@ Among entries at the same specificity, the first-defined wins. The winner's reas
 
 ### What's intentionally NOT in v1.1.0
 
-- **Source-code comment annotations** (e.g., `# securecoder: ignore`). Config-file model is source of truth; in-source annotations duplicate without adding meaningful value.
-- **Sampling-assisted review** of large clusters. The cluster view's "expand to see 3 samples" covers most of the value.
+- **Source-code comment annotations** (e.g., `# securecoder: ignore`). Config-file model is source of truth; in-source annotations duplicate without adding meaningful value. *(Added in v1.2.0.)*
+- **Sampling-assisted review** of large clusters. The cluster view's "expand to see 3 samples" covers most of the value. *(Added in v1.2.0.)*
 - **`scope: "review-only"`** (suppress in `/securecoder-review` but not in full scans). Single global scope keeps the model simple.
 - **ML-assisted false-positive prediction.** Needs training data not yet available.
+
+## 3.10 Framework fit + the secure-coding-essentials baseline (v1.3.0)
+
+ASVS, MASVS, and Proactive Controls are all web/mobile-shaped. When `/securecoder-scan` runs the compliance pass over non-web code — C kernel routines, embedded firmware, Rust systems code, Go CLIs, ML pipelines, libraries — most controls evaluate to N/A and the run burns LLM tokens for little signal. v1.3.0 closes this gap with two coupled mechanisms.
+
+### Baseline-plus-overlay model
+
+Frameworks split into two `layer`s:
+
+- **`baseline`** — universal concerns present in *every* codebase regardless of domain. Always runs (unless explicitly opted out). v1.3.0 ships exactly one: `secure-coding-essentials`.
+- **`overlay`** — domain-specialized controls layered on top. ASVS v5 (web), MASVS (mobile), and — from v1.4.0 — CERT C (systems). Subject to fit-detection.
+
+A web-app scan runs `secure-coding-essentials` + `asvs-v5`. A C kernel scan runs `secure-coding-essentials` alone, with `asvs-v5` flagged poor-fit. The `frameworks` list in `config.json` governs *overlays only*; the baseline runs implicitly.
+
+### `secure-coding-essentials` framework
+
+Bundled in the skill repo (not fetched — sidesteps the SEI-wiki / paywalled-MISRA fetchability problem that rules out CERT C and MISRA as `git clone` targets). Lives at `skills/security/securecoder-scan/references/frameworks/secure-coding-essentials/` as chapter markdown. Its `frameworks.json` entry carries `source: "bundled"` + `bundled_path` instead of a git URL; Phase B.1's fetcher branches on `source: "bundled"` and points `CHAPTERS_DIR` straight at the in-repo path, skipping the clone.
+
+Nine chapters, each a markdown control table with CWE cross-references. Control IDs follow the `SCE-<AREA>-<n>` pattern (mirrors MASVS's `MASVS-STORAGE-1`):
+
+| Chapter | Code | CWE clusters |
+|---|---|---|
+| Memory Safety | `SCE-MEM` | CWE-119/125/787/416/415/476 |
+| Integer Handling | `SCE-INT` | CWE-190/191/192/197 |
+| Input Validation & Untrusted Data | `SCE-INPUT` | CWE-20/1284 |
+| Injection Prevention | `SCE-INJECT` | CWE-77/78/94/22/89 |
+| Error & Exception Handling | `SCE-ERR` | CWE-252/391/755 |
+| Resource Management | `SCE-RES` | CWE-401/404/770/772 |
+| Concurrency & Races | `SCE-CONC` | CWE-362/364/367 |
+| Cryptography & Secrets | `SCE-CRYPTO` | CWE-327/328/330/798/200/532 |
+| Access Control & Privilege | `SCE-ACCESS` | CWE-285/269/250 |
+
+The existing architect prompt, coverage-matrix validator, and compliance normalizer all work unchanged once `validate_coverage.py` reads `control_id_regex` per-framework from `frameworks.json` (the field already exists; it was hardcoded to the ASVS three-number form).
+
+### Essentials relevance filter
+
+`relevance-secure-coding-essentials.json` uses the same machinery as the ASVS / MASVS relevance files. Seven chapters are `applies_to_languages: ["all"]`. `SCE-MEM` and `SCE-INT` are **keyword-triggered**: they apply unconditionally to memory-unsafe / fixed-width-int languages (C, C++, Rust, Zig, assembly), and to memory-managed languages *only when* the file contains FFI / `unsafe` signals (`ctypes`, `cffi`, `unsafe`, `JNI`, `cgo`, `Marshal`). This keeps the two language-dependent chapters from firing guaranteed-N/A pairs while preserving the FFI escape hatch.
+
+### Fit-detection
+
+A pre-flight step in `/securecoder-scan`, before the cost estimate. The `fit_check.py` helper scores each `overlay` framework by language-profile overlap:
+
+```
+fit_pct = (count of repo source files whose language ∈ framework.target_languages)
+          / (total repo source files) × 100
+```
+
+`frameworks.json` gains three fields per entry: `target_languages` (or `["all"]`), `layer` (`baseline` | `overlay`), and `signal_globs` (file patterns that rescue a borderline case — a mostly-C repo with a `package.json` is a Node C-extension; ASVS still relevant).
+
+When an overlay's `fit_pct` falls below `config.framework_fit.poor_fit_threshold_pct` (default 15, configurable), the scan warns before the cost estimate and offers three choices:
+
+- `recommended` — drop the poor-fit overlay for this run only (does not rewrite `config.json`)
+- `as-configured` — run everything anyway
+- `abort`
+
+The warning also surfaces *non-enabled* frameworks that would fit better ("this looks like a mobile project — consider enabling MASVS"). `baseline`-layer frameworks skip fit-detection entirely.
+
+### Config additions
+
+```json
+{
+  "framework_fit": { "poor_fit_threshold_pct": 15 },
+  "baseline_enabled": true
+}
+```
+
+`baseline_enabled` defaults true — `secure-coding-essentials` runs on every compliance scan. Existing `config.json` files (no `baseline_enabled` key) are treated as `true`, so upgrading installs get the baseline automatically; the `frameworks` list continues to govern overlays. The rare team wanting overlay-only sets `baseline_enabled: false`.
+
+### What's intentionally NOT in v1.3.0
+
+- **CERT C / C++ and other domain standards as overlays.** Committed to v1.4.0 — they need a wiki-scraping ingestion path since they aren't clean `git clone` markdown targets.
+- **MISRA.** Paywalled; not viable as a bundled or fetched framework.
+- **Auto-rewrite of `config.json` from the fit warning.** The warning advises and can drop-for-this-run; permanent changes stay `/securecoder-setup`'s job — config mutation should be deliberate.
+- **Project-type detection beyond language profile.** "Is this a kernel module vs a C web server" needs deeper signals than v1.3.0's language + glob heuristic. Language profile + `signal_globs` covers the common cases.
 
 ## 4. Findings Schema
 
