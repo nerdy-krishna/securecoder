@@ -654,7 +654,64 @@ The framework registry at `<skill-dir>/references/frameworks.json` declares supp
 
 **Mobile-stack auto-detection** — before deciding the active framework list, check whether any file in the repo matches the `_mobile_stack_signals` globs from `frameworks.json`. If yes AND `masvs` isn't already enabled, add it to the active list and log a note: "Detected mobile stack; auto-enabled MASVS. Disable in /securecoder-setup if unwanted."
 
+**The baseline framework always runs.** `secure-coding-essentials` (`layer: "baseline"`) is included in the active set on every compliance scan regardless of `config.frameworks`, unless `config.baseline_enabled` is explicitly `false`. The `config.frameworks` list governs *overlay*-layer frameworks only. See [`docs/design.md` §3.10](../../../docs/design.md).
+
 For each active framework that's `scannable: true`, run Phases B.1–B.6 below in turn. Each framework writes its findings into the same merged `findings.jsonl`. Cheatsheets (when enabled) are fetched but not scanned.
+
+### B.0.5 Framework fit check
+
+Before fetching any chapter content or estimating cost, check whether the active *overlay* frameworks actually fit the repo. `baseline`-layer frameworks skip this check — they always run.
+
+First ensure a repo map exists (the walker is cheap and idempotent; B.2 reuses this file):
+
+```bash
+[ -f "$RUN_DIR/repo_map.json" ] || python3 "<skill-dir>/scripts/repo_walker.py" \
+  "$PROJECT_ROOT" --output "$RUN_DIR/repo_map.json"
+```
+
+Then run the fit checker. The threshold comes from `config.framework_fit.poor_fit_threshold_pct` (default 15):
+
+```bash
+python3 "<skill-dir>/scripts/fit_check.py" \
+  "$RUN_DIR/repo_map.json" \
+  --frameworks-json "<skill-dir>/references/frameworks.json" \
+  --active "<comma-separated active framework ids>" \
+  --repo-root "$PROJECT_ROOT" \
+  --threshold "<config.framework_fit.poor_fit_threshold_pct, default 15>" \
+  --json > "$RUN_DIR/_fit_check.json"
+```
+
+Read `_fit_check.json`. Two outcomes:
+
+- **`poor_fit` is empty** — every active overlay fits (or is rescued by a signal file). Proceed to B.1 with the full active set.
+- **`poor_fit` is non-empty** — one or more active overlays are a poor fit. Warn the user before doing any expensive work:
+
+  ```
+  Framework fit check:
+    secure-coding-essentials  — baseline, always runs       ✓
+    asvs-v5                   — poor fit (<fit_pct>% of files are
+                                target languages; repo is <top languages>)  ⚠
+
+    <poor-fit framework> targets <its domain>. On this repo it will
+    produce mostly "N/A" coverage rows and burn tokens for little
+    signal. The secure-coding-essentials baseline already covers the
+    universal concerns (memory safety, integer handling, concurrency,
+    injection, error handling, ...) that matter for this code.
+
+  Continue?
+    [recommended]   Run secure-coding-essentials + any good-fit overlays
+                    only (skip the poor-fit overlays this run)
+    [as-configured] Run every active framework anyway
+    [abort]         Exit
+  ```
+
+  - `recommended` — drop the `poor_fit` framework ids from the active set *for this run only*. Does NOT rewrite `.securecoder/config.json`. Append a note: "To make this permanent, run `/securecoder-setup` and disable `<framework>`."
+  - `as-configured` — keep the full active set.
+  - `abort` — clean exit, no scan performed.
+
+If `_fit_check.json`'s `suggested_enable` is non-empty, also surface it: "This repo's language profile matches `<framework>`, which isn't enabled — consider enabling it in `/securecoder-setup`."
+
+The active set after this step (post-`recommended`-pruning, if chosen) is what B.1–B.6 iterate over, and what the B.3 cost estimate is computed from.
 
 ### B.1 Resolve the framework's chapter content
 

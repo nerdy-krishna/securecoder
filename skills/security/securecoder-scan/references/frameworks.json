@@ -31,7 +31,9 @@
       "control_id_prefix": "V",
       "relevance_file": "relevance-asvs-v5.json",
       "scannable": true,
-      "default_enabled": true
+      "default_enabled": true,
+      "target_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "signal_globs": ["requirements.txt", "package.json", "pom.xml", "build.gradle", "Gemfile", "composer.json", "go.mod", "*.csproj"]
     },
     "masvs": {
       "name": "OWASP MASVS",
@@ -47,7 +49,9 @@
       "relevance_file": "relevance-masvs.json",
       "scannable": true,
       "default_enabled": false,
-      "auto_enable_on": ["ios", "android", "kotlin", "swift", "react-native"]
+      "auto_enable_on": ["ios", "android", "kotlin", "swift", "react-native"],
+      "target_languages": ["swift", "kotlin", "java", "objective-c", "dart"],
+      "signal_globs": ["AndroidManifest.xml", "Info.plist", "Podfile", "build.gradle", "pubspec.yaml"]
     },
     "proactive-controls": {
       "name": "OWASP Proactive Controls",
@@ -62,7 +66,9 @@
       "control_id_prefix": "C",
       "relevance_file": "relevance-proactive-controls.json",
       "scannable": true,
-      "default_enabled": false
+      "default_enabled": false,
+      "target_languages": ["python", "javascript", "typescript", "go", "java", "kotlin", "ruby", "php", "csharp"],
+      "signal_globs": ["requirements.txt", "package.json", "pom.xml", "build.gradle", "Gemfile", "composer.json", "go.mod", "*.csproj"]
     },
     "cheatsheets": {
       "name": "OWASP Cheat Sheet Series",
