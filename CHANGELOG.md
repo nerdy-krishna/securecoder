@@ -4,6 +4,24 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-05-17
+
+Bug fix. The `/securecoder-scan` SKILL.md carried stale slice-03-era narrative text that contradicted the implemented compliance pass.
+
+### Fixed
+
+- **`/securecoder-scan` SKILL.md self-contradiction.** When slice 07 (v0.6.0) replaced the Phase B stub with the real ASVS compliance implementation, four pieces of slice-03-era text were left behind:
+  - The frontmatter `description` still said the compliance pass "lands in a subsequent release"
+  - A "**Slice 03 scope**" banner near the top still claimed "the LLM compliance pass is still stubbed and gracefully refuses if the user picks it"
+  - A failure-handling trigger still listed "the user picked an unimplemented mode"
+  - The "Notes for future slices" section still listed slices 04 and 07 as upcoming
+
+  The functional flow (mode picker + Phase B) has been correct since v0.6.0, but the contradictory banner could lead an agent reading the SKILL.md to refuse a valid `LLM compliance only` scan with a "mode unavailable / Slice 03 build" message. All four stale spots are now corrected to reflect that all three scan modes (SAST-only, LLM-compliance-only, Both) are fully implemented.
+
+### Note for users seeing "mode unavailable" errors
+
+If you installed securecoder before v0.6.0 and never updated, your local copy genuinely lacks the compliance pass. Run `/securecoder-update` to check your version, then `npx skills@latest add nerdy-krishna/securecoder` to upgrade. Stale installs are the most common cause of "this build (Slice 03)" style errors.
+
 ## [1.2.0] — 2026-05-15
 
 Six slices delivering the v1.2.0 roadmap items: version-check helper, source-code suppression annotations, smart-collapse virtualization, sample-assisted cluster review, plus 46 new pytest cases backfilling v0.x helper coverage. Brings the skill count to 9 and the test count to 83.
@@ -359,7 +377,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.2.1
 [1.2.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.2.0
 [1.1.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.1.0
 [1.0.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.0.0

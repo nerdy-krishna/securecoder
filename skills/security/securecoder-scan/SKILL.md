@@ -1,13 +1,13 @@
 ---
 name: securecoder-scan
-description: Audit a codebase for vulnerabilities and OWASP compliance issues. Runs four SAST tools — Semgrep, Bandit, Gitleaks, OSV-scanner — and emits findings in the unified securecoder schema, with markdown report and run-history under .securecoder/runs/<id>/. The LLM-driven compliance pass against OWASP frameworks lands in a subsequent release.
+description: Audit a codebase for vulnerabilities and OWASP compliance issues. Runs four SAST tools — Semgrep, Bandit, Gitleaks, OSV-scanner — and an LLM-driven compliance pass against OWASP ASVS v5 / MASVS / Proactive Controls. Emits findings in the unified securecoder schema, with markdown + HTML reports and run-history under .securecoder/runs/<id>/.
 ---
 
 # `/securecoder-scan`
 
 You are running the `/securecoder-scan` skill. Your job is to audit the user's codebase for security findings and write the results to `.securecoder/runs/<run-id>/`.
 
-> **Slice 03 scope.** All four SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) are implemented. The LLM compliance pass is still stubbed and gracefully refuses if the user picks it; it lands in slice 07.
+> **Scope.** All three scan modes are fully implemented and usable: SAST-only (Semgrep + Bandit + Gitleaks + OSV-scanner), LLM-compliance-only (ASVS v5 — and MASVS / Proactive Controls when configured), and Both. The mode picker in pre-flight step 3 routes between them; the SAST tools run in Phase A and the LLM compliance pass runs in Phase B.
 
 ## Pre-flight
 
@@ -854,7 +854,6 @@ Triggers:
 - Disk full or permission denied writing to `$RUN_DIR` or `~/.cache/securecoder/`.
 - ALL FOUR tools failed (no findings produceable; the scan has no value).
 - The cached rule-pack directory's SHA doesn't match its name (integrity tamper).
-- The user picked an unimplemented mode (this is a clean exit, not a crash — see Phase B).
 
 On hard failure:
 
@@ -892,8 +891,7 @@ These hold at every phase boundary:
 
 If any invariant is violated, that's itself a hard failure.
 
-## Notes for future slices
+## Extending this skill
 
-- **Slice 04** (HTML + trend) — adds `render_html.py` as a sibling of `render_markdown.py`. Reuses the same `findings.jsonl` + `manifest.json` inputs. Adds run-history diff against prior runs.
-- **Slice 07** (compliance) — adds a framework fetcher analogous to A.3, a relevance filter, an architect-prompt template, and a coverage-matrix validator. Compliance findings normalize into the same `findings.jsonl` with `category: "compliance"`. Phase B becomes implemented.
-- **Future SAST additions** (post-v0.x) — new tools each plug in by adding: an installer block under A.2, an invocation block under A.5, a normalizer under `scripts/normalize_<tool>.py`, a row in the per-tool merge in A.7, and a friendly name in the manifest builder.
+- **Adding a SAST tool** — new tools plug in by adding: an installer block under A.2, an invocation block under A.5, a normalizer under `scripts/normalize_<tool>.py`, a row in the per-tool merge in A.7, and a friendly name in the manifest builder.
+- **Adding a compliance framework** — register it in `references/frameworks.json` with its source repo, chapter directory, and control-ID regex; add a `references/relevance-<framework>.json`; Phase B's per-framework loop picks it up automatically.
