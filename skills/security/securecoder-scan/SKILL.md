@@ -645,12 +645,15 @@ Only runs when the user picked "LLM compliance only" or "Both" at the mode picke
 
 Read `config.frameworks` from `.securecoder/config.json` (default: `["asvs-v5"]`).
 
-The framework registry at `<skill-dir>/references/frameworks.json` declares supported frameworks. As of v0.12.0:
+The framework registry at `<skill-dir>/references/frameworks.json` declares supported frameworks:
 
-- **`asvs-v5`** — fully scannable, default-enabled
-- **`masvs`** — fully scannable, auto-enabled when `_mobile_stack_signals` patterns match files in the repo (iOS / Android / Kotlin / Swift / React Native / Flutter)
-- **`proactive-controls`** — fully scannable, opt-in via `/securecoder-setup`
+- **`secure-coding-essentials`** — `layer: "baseline"`, bundled in this skill. The universal baseline; runs on every compliance scan unless `config.baseline_enabled` is `false`. Not subject to fit-detection.
+- **`asvs-v5`** — `layer: "overlay"`, fully scannable, default-enabled
+- **`masvs`** — `layer: "overlay"`, fully scannable, auto-enabled when `_mobile_stack_signals` patterns match files in the repo (iOS / Android / Kotlin / Swift / React Native / Flutter)
+- **`proactive-controls`** — `layer: "overlay"`, fully scannable, opt-in via `/securecoder-setup`
 - **`cheatsheets`** — NOT scanned against; fetched for `/securecoder-fix` remediation context and `/securecoder-advise` grounding
+
+**Construct the active set:** start with `secure-coding-essentials` (unless `config.baseline_enabled` is `false`), then add every overlay framework listed in `config.frameworks`. That combined set is what B.0.5's fit-check and B.1–B.6 operate on.
 
 **Mobile-stack auto-detection** — before deciding the active framework list, check whether any file in the repo matches the `_mobile_stack_signals` globs from `frameworks.json`. If yes AND `masvs` isn't already enabled, add it to the active list and log a note: "Detected mobile stack; auto-enabled MASVS. Disable in /securecoder-setup if unwanted."
 

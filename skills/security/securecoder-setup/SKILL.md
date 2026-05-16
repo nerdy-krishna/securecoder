@@ -1,6 +1,6 @@
 ---
 name: securecoder-setup
-description: One-time team configuration wizard for securecoder. Asks 8 questions and writes `.securecoder/config.json` to the project root — frameworks to scan against, severity floor, default fix scope, git push strategy, language overrides, and advanced source/tool pins. Run once when a team adopts securecoder; re-run any time to change preferences.
+description: One-time team configuration wizard for securecoder. Asks 9 questions and writes `.securecoder/config.json` to the project root — overlay frameworks, severity floor, default fix scope, git push strategy, language overrides, advanced source/tool pins, and framework-fit settings. Run once when a team adopts securecoder; re-run any time to change preferences.
 ---
 
 # `/securecoder-setup`
@@ -57,9 +57,11 @@ Ask one question at a time. Wait for the user's answer before moving on. Use wha
 
 After each question, briefly confirm the captured answer back to the user before proceeding ("Got it — frameworks: ASVS v5.").
 
-### Q1 — Compliance frameworks (multi-select)
+### Q1 — Compliance overlay frameworks (multi-select)
 
-> Which compliance frameworks should `/securecoder-scan` and `/securecoder-secure` check your code against?
+> The **secure-coding-essentials** baseline (memory safety, integer handling, injection, concurrency, error handling, crypto, access control) runs on every compliance scan automatically — it's universal and needs no configuration.
+>
+> Which *domain-specific overlay* frameworks should also run, layered on top of the baseline?
 
 Multi-select. Options:
 
@@ -67,11 +69,13 @@ Multi-select. Options:
 - **MASVS** — OWASP Mobile Application Security Verification Standard. *(Default OFF; will auto-enable later if `/securecoder-scan` detects a mobile stack.)*
 - **Proactive Controls** — OWASP's defensive design checklist. *(Default OFF.)*
 - **Cheatsheets** — OWASP CheatSheetSeries, used as remediation reference only (not scanned against). *(Default OFF.)*
-- **None** — skip compliance review entirely; SAST tools still run.
+- **None** — run the baseline only; no overlay frameworks.
 
-Default when no existing config: `["asvs-v5"]`.
+Default when no existing config: `["asvs-v5"]`. (The baseline always runs in addition — see the closing note below.)
 
-**If the user selects at least one framework, display this privacy notice once before recording the answer.** Ask for explicit acknowledgment.
+Tell the user: when `/securecoder-scan` runs against code an overlay doesn't fit (e.g. ASVS over a C kernel routine), the fit-check in pre-flight will warn and offer to skip the poor-fit overlay for that run. The baseline still covers the universal concerns. So picking ASVS here is safe even for a mixed codebase.
+
+**If the user selects at least one overlay framework, display this privacy notice once before recording the answer.** Ask for explicit acknowledgment. (The baseline framework also sends code to the LLM — the notice covers it too; the baseline is bundled so there's no fetch, but the per-file LLM evaluation still applies.)
 
 > **SECURECODER PRIVACY NOTE**
 >
@@ -172,14 +176,32 @@ Default: none.
 >
 > Confirm by replying "ok" or "continue".
 
+### Q9 — Framework fit (advanced)
+
+> When `/securecoder-scan` runs an overlay framework against code it doesn't fit (ASVS over C kernel code, etc.), a pre-flight fit-check warns you. An overlay is flagged poor-fit when fewer than this percentage of the repo's files are in the framework's target languages.
+
+Single-select:
+
+- **Default threshold (15%)** (Recommended)
+- **Custom threshold** — capture an integer 1–100. Lower = more permissive (only warn on near-zero overlap); higher = more aggressive (warn whenever a framework isn't the dominant fit).
+
+> The **secure-coding-essentials baseline runs on every compliance scan** and is never subject to fit-checking. Disable it only if you specifically want overlay-only coverage.
+
+Single-select:
+
+- **Keep the baseline on** (Recommended)
+- **Disable the baseline** — `/securecoder-scan` compliance runs overlay frameworks only
+
+Defaults: threshold 15, baseline enabled.
+
 ## Write the config
 
-After all 8 questions are answered, write `<project-root>/.securecoder/config.json` with this exact schema. Use 2-space indentation. End with a trailing newline.
+After all 9 questions are answered, write `<project-root>/.securecoder/config.json` with this exact schema. Use 2-space indentation. End with a trailing newline.
 
 ```json
 {
-  "schema_version": "1.0",
-  "frameworks": [<list from Q1>],
+  "schema_version": "1.1",
+  "frameworks": [<overlay list from Q1>],
   "severity_floor": "<from Q2>",
   "default_fix_scope": [<list from Q3>],
   "git": {
@@ -188,13 +210,20 @@ After all 8 questions are answered, write `<project-root>/.securecoder/config.js
   "languages": [<list from Q5>],
   "rule_pins": <object from Q6, {} if defaults>,
   "tools": <object from Q7, {} if cached>,
-  "custom_sources": [<list from Q8, [] if none>]
+  "custom_sources": [<list from Q8, [] if none>],
+  "framework_fit": {
+    "poor_fit_threshold_pct": <int from Q9, default 15>
+  },
+  "baseline_enabled": <bool from Q9, default true>
 }
 ```
 
 ### Schema notes
 
-- `frameworks` valid tokens: `asvs-v5`, `masvs`, `proactive-controls`, `cheatsheets`. Empty list if user picked "None."
+- `frameworks` lists *overlay* frameworks only. Valid tokens: `asvs-v5`, `masvs`, `proactive-controls`, `cheatsheets`. Empty list if user picked "None" — the baseline still runs.
+- `baseline_enabled` — when `true` (default), `secure-coding-essentials` runs on every compliance scan regardless of `frameworks`. Set `false` only for overlay-only coverage.
+- `framework_fit.poor_fit_threshold_pct` — integer 1–100; the fit-check's poor-fit cutoff.
+- A `config.json` written by an older securecoder (no `framework_fit` / `baseline_enabled` keys, `schema_version: "1.0"`) is read as `baseline_enabled: true`, `poor_fit_threshold_pct: 15` — upgrading installs get the baseline automatically.
 - `severity_floor` valid values: `critical`, `high`, `medium`, `low`, `info`.
 - `default_fix_scope` is a subset of the severity tokens.
 - `git.push_strategy` is one of `push-each`, `commit-local-push-at-end`, `commit-local-never-push`.
