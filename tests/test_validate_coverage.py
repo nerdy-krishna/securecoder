@@ -41,3 +41,35 @@ def test_extract_response_controls_skips_non_table_lines():
     response = "1.1.1 appears in prose but not in any table line.\n"
     found = vc.extract_response_controls(response)
     assert found == []
+
+
+# ─── per-framework regex (v1.3.0) ───
+
+
+def test_extract_chapter_controls_sce_format():
+    md = """
+| # | Description | CWE |
+| **SCE-MEM-1** | Verify bounds | CWE-787 |
+| **SCE-MEM-2** | Verify reads | CWE-125 |
+"""
+    regex = r"\*\*(SCE-[A-Z]+-\d+)\*\*"
+    assert vc.extract_chapter_controls(md, regex) == ["SCE-MEM-1", "SCE-MEM-2"]
+
+
+def test_extract_response_controls_sce_format():
+    response = "| Control | Verdict |\n| SCE-MEM-1 | Fail |\n| SCE-INT-3 | Pass |\n"
+    regex = r"\b(SCE-[A-Z]+-\d+)\b"
+    found = vc.extract_response_controls(response, regex)
+    assert sorted(found) == ["SCE-INT-3", "SCE-MEM-1"]
+
+
+def test_extract_chapter_controls_masvs_format():
+    md = "| **MASVS-STORAGE-1** | x |\n| **MASVS-CRYPTO-2** | y |\n"
+    regex = r"\*\*(MASVS-[A-Z]+-\d+)\*\*"
+    assert vc.extract_chapter_controls(md, regex) == ["MASVS-CRYPTO-2", "MASVS-STORAGE-1"]
+
+
+def test_default_regexes_still_asvs():
+    # Backwards-compat: calling without a regex arg uses the ASVS form
+    md = "| **1.2.1** | x |\n"
+    assert vc.extract_chapter_controls(md) == ["1.2.1"]

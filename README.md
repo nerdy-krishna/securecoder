@@ -2,9 +2,9 @@
 
 An installable collection of AI-agent skills that audits, fixes, and supervises code against OWASP security frameworks. Works inside Claude Code, Cursor, Codex, Cline, Copilot, Windsurf, Gemini, and other agent hosts.
 
-securecoder is **fully agent-driven**. No server, no daemon, no API keys. It fetches SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and OWASP framework markdown (ASVS, MASVS, Cheatsheets, Proactive Controls) at runtime on your machine — nothing is sent to a third party by the skill itself.
+securecoder is **fully agent-driven**. No server, no daemon, no API keys. It fetches SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and OWASP framework markdown (ASVS, MASVS, Cheatsheets, Proactive Controls) at runtime on your machine — nothing is sent to a third party by the skill itself. Compliance scans always run a bundled, language-agnostic baseline framework (`secure-coding-essentials`), so non-web code gets a real audit too.
 
-> **Status:** v1.2.0 — nine skills functional. v1.2.0 adds `/securecoder-update` (version checker), source-code suppression annotations (`# securecoder: ignore`), smart-collapse virtualization for large reports, sample-assisted cluster review, and 46 new pytest cases backfilling v0.x helper coverage.
+> **Status:** v1.3.0 — nine skills functional. v1.3.0 adds the `secure-coding-essentials` universal baseline framework (always runs — memory safety, integer handling, concurrency, etc.), framework fit-detection that warns when an overlay like ASVS doesn't fit the repo and suggests a better one, per-framework control-ID regexes, and 15 new pytest cases (98 total).
 
 ## Quickstart
 
@@ -68,8 +68,8 @@ That's the minimum path. The other four skills add specific value — see [§ Th
 
 | Skill | One-line purpose | When to invoke it | Follow up with |
 | --- | --- | --- | --- |
-| `/securecoder-setup` | Configure frameworks, severity floor, fix scope, push strategy. | Once when adopting securecoder, or when team preferences change. | `/securecoder-scan` |
-| `/securecoder-scan` | Audit your code — SAST (Semgrep, Bandit, Gitleaks, OSV) and/or ASVS/MASVS LLM compliance. | When you want to know what's wrong before changing anything. | `/securecoder-fix` |
+| `/securecoder-setup` | Configure overlay frameworks, severity floor, fix scope, push strategy, framework-fit threshold. | Once when adopting securecoder, or when team preferences change. | `/securecoder-scan` |
+| `/securecoder-scan` | Audit your code — SAST (Semgrep, Bandit, Gitleaks, OSV) and/or LLM compliance (baseline `secure-coding-essentials` + any ASVS/MASVS overlays). Warns on poor framework fit. | When you want to know what's wrong before changing anything. | `/securecoder-fix` |
 | `/securecoder-fix` | Apply fixes to a previous scan's findings, with full safety loop. | After `/securecoder-scan`, to remediate. | `/securecoder-scan` (verify) |
 | `/securecoder-secure` | Easy-button pipeline: scan → fix → compliance scan → fix → report, one approval. | When you don't want to choose between scan modes — let the pipeline do the right thing. | `/securecoder-review` (next commit) |
 | `/securecoder-review` | Diff-scoped review of staged or branch changes. Pre-commit gate. | Right before you commit / push. | `/securecoder-fix` (if findings) |
@@ -154,6 +154,7 @@ Detailed per-skill guides live at [`docs/guides/per-skill/`](docs/guides/per-ski
 | **About to open a PR** | `/securecoder-review` (scope: branch vs base) → `/securecoder-fix` if findings |
 | **Casual learning** | `/securecoder-advise "<question>"` — no setup required if you've run a scan once to populate the framework cache |
 | **Compliance audit deliverable** | `/securecoder-scan` (mode: LLM compliance only) → share the `report.html` and the compliance-posture section |
+| **Scanning non-web code (C / Rust / embedded)** | `/securecoder-scan` → at the fit warning pick "recommended" — the `secure-coding-essentials` baseline audits it; ASVS is skipped |
 | **A finding looks wrong** | `/securecoder-advise` (mode: specific finding deep-dive) — see the verbatim ASVS text + why securecoder flagged it |
 | **Rolling back a bad fix** | `/securecoder-fix --restore <run-id>` |
 
@@ -210,7 +211,7 @@ The two projects share design intent but have **no runtime dependency on each ot
 - [`docs/prd.md`](docs/prd.md) — user-story-driven requirements
 - [`docs/issues/`](docs/issues/) — 14 implementation slices, dependency-ordered
 - [`docs/guides/`](docs/guides/) — usage walkthroughs and per-skill deep dives
-- [`docs/roadmap.md`](docs/roadmap.md) — what's planned for v1.2.0 and beyond
+- [`docs/roadmap.md`](docs/roadmap.md) — what's planned for v1.4.0 and beyond
 - [`CHANGELOG.md`](CHANGELOG.md) — full release history from v0.1.0 onwards
 
 Contributions welcome. The simplest path:

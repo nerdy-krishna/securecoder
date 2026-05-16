@@ -40,7 +40,7 @@ The value over plain agent chat: anchoring. ASVS V1.2.1 will never be misquoted,
 | **General Q&A** | Ask any security question | Answer grounded in framework markdown search results |
 | **Findings-grounded Q&A** | Ask about your latest scan ("which findings are correlated?") | Answer that references specific finding IDs + file:line |
 | **Specific finding deep-dive** | Provide an 8-char finding ID | Verbatim evidence + framework control text + remediation + related controls |
-| **Framework lookup** | Provide a control ID ("V1.2.1") | Verbatim control text + plain-language interpretation + related controls |
+| **Framework lookup** | Provide a control ID ("V1.2.1", "SCE-MEM-1") | Verbatim control text + plain-language interpretation + related controls |
 
 ## Response format (always)
 
@@ -139,7 +139,8 @@ Safe to invoke at any time without worrying about side effects.
 
 ## Common pitfalls
 
-- **The cache must be populated.** Run `/securecoder-scan` with a compliance mode at least once to clone the OWASP framework repos. Otherwise the skill answers ungrounded with an explicit disclaimer.
+- **The cache must be populated for overlay frameworks.** Run `/securecoder-scan` with a compliance mode at least once to clone the OWASP framework repos (ASVS, MASVS, Cheatsheets, Proactive Controls). Otherwise the skill answers ungrounded with an explicit disclaimer.
+- **`secure-coding-essentials` (`SCE-*`) needs no cache.** The baseline framework is bundled inside the skill, so `/securecoder-advise "Explain SCE-MEM-1"` works offline and on a fresh install — no scan required to populate it.
 - **Verbatim quotes are exact.** If a control's text has typos in OWASP's source, the skill quotes the typos. They're upstream.
 - **Cheatsheets are not scanned against** but they ARE in the cache for /securecoder-advise to read. Enable them in `/securecoder-setup` to populate.
 - **Skill is host-LLM dependent for interpretation.** The verbatim quotes are deterministic; the plain-language interpretation comes from the host LLM. Quality varies by model.

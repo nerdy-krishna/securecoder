@@ -361,3 +361,45 @@ Example mixed session:
 ```
 
 The `latest` symlink under `.securecoder/runs/` always points at the most recent scan run, so downstream skills find findings without needing args.
+
+---
+
+## Scenario 13 — Scanning non-web code: a C kernel routine, embedded firmware, a Rust crate (v1.3.0)
+
+**Goal:** Audit code that isn't a web app. ASVS is web-shaped — sessions, auth tokens, HTTP encoding — and a C TCP-input routine or an embedded driver triggers almost none of it. Pre-v1.3.0 this produced a coverage matrix that was mostly `N/A` rows and burned LLM tokens evaluating controls that could never apply.
+
+**Sequence:**
+
+```
+1.  /securecoder-setup            (optional — leave overlays off, or off entirely)
+2.  /securecoder-scan             (mode: LLM compliance only, or Both)
+3.  Read the fit warning, pick "recommended"
+4.  Open .securecoder/runs/<id>/report.html
+```
+
+**What happens:**
+
+- **The baseline always runs.** Every compliance scan evaluates `secure-coding-essentials` — nine language-agnostic chapters: Memory Safety, Integer Handling, Input Validation, Injection Prevention, Error & Exception Handling, Resource Management, Concurrency & Races, Cryptography & Secrets, Access Control & Privilege. A C TCP-input routine gets real bounds-checking, integer-overflow, and use-after-free evaluation (`SCE-MEM-*`, `SCE-INT-*`, `SCE-CONC-*`) instead of ASVS N/A noise. You don't configure this — it's on by default.
+
+- **Step 2 — fit check (B.0.5).** Before the cost estimate, `fit_check.py` scores each *overlay* framework you have enabled. It builds a language profile of the repo and computes what % of source files fall in the overlay's `target_languages`. ASVS targets web languages; a 100%-C repo scores ~0% fit.
+
+- **Step 3 — the warning.** If an enabled overlay is below the fit threshold (default 15%, set in `/securecoder-setup` Q9) and no `signal_glob` rescues it (e.g. no `package.json`), the scan warns:
+
+  ```
+  Framework fit warning
+    asvs-v5 (overlay)   fit 0%   — repo is 100% C; ASVS targets web languages.
+                                   Most controls will return N/A.
+  Suggested: secure-coding-essentials (baseline, already running).
+             No overlay fits this repo well.
+
+  How do you want to proceed?
+    [recommended]   skip asvs-v5 this run — baseline only
+    [as-configured] run asvs-v5 anyway (expect mostly N/A rows)
+    [abort]
+  ```
+
+  Pick `recommended` to scan with just the baseline — no wasted tokens. If a *non-enabled* overlay would actually fit (e.g. MASVS on an Android repo), the scan surfaces it as a suggestion to enable.
+
+- **FFI escape hatch.** `SCE-MEM` and `SCE-INT` apply unconditionally to memory-unsafe / fixed-width-int languages. For memory-managed languages (Python, Go) they only activate when a file touches an FFI/`unsafe` boundary — a `ctypes`, `cgo`, or `unsafe` keyword. So a pure-Python file skips memory-safety controls, but a Python file calling into a C library still gets them.
+
+**Tip:** For a non-web repo you can leave the `frameworks` list in `config.json` empty — the baseline still runs. Overlays are opt-in; the baseline is the floor. CERT C / C++ as a dedicated C-language overlay is committed for v1.4.0 (`docs/roadmap.md`).

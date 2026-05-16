@@ -4,6 +4,35 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-05-17
+
+Framework fit. ASVS / MASVS / Proactive Controls are all web/mobile-shaped — scanning non-web code (C kernel routines, embedded, Rust, Go) produced mostly N/A coverage and burned tokens. v1.3.0 adds a universal baseline framework that always runs, and fit-detection that warns when an overlay framework doesn't fit the repo. Full design: `docs/design.md` §3.10.
+
+### Added
+
+- **`secure-coding-essentials` — a universal baseline compliance framework.** Nine `SCE-*` chapters bundled in the skill repo (not fetched): Memory Safety, Integer Handling, Input Validation, Injection Prevention, Error & Exception Handling, Resource Management, Concurrency & Races, Cryptography & Secrets, Access Control & Privilege. ~44 controls, each CWE-cross-referenced. Runs on *every* compliance scan as the `baseline` layer — so a C kernel routine gets real memory-safety / integer-overflow / concurrency evaluation instead of ASVS N/A noise.
+- **Baseline-plus-overlay model.** Frameworks now carry a `layer`: `baseline` (always runs) or `overlay` (domain-specialized, fit-checked). ASVS / MASVS / Proactive Controls became overlays. `config.frameworks` governs overlays only; the baseline runs implicitly.
+- **Fit-detection.** New `fit_check.py` runs pre-flight (zero LLM tokens), scoring each overlay framework by what % of the repo's source files are in its `target_languages`. Below the threshold (and with no `signal_glob` rescue), the overlay is flagged poor-fit. The scan warns before the cost estimate and offers `recommended` (skip the poor-fit overlay this run), `as-configured`, or `abort`. Non-enabled overlays that *would* fit are surfaced as suggestions.
+- **`conditional_languages` relevance field.** `SCE-MEM` and `SCE-INT` apply unconditionally to memory-unsafe / fixed-width-int languages, and to memory-managed languages only when an FFI/`unsafe` keyword is present — the escape hatch for `ctypes` / `cgo` / `unsafe` blocks. `file_relevance.py` resolves hard-exclude → unconditional → conditional.
+- **Per-framework control-ID regexes.** `validate_coverage.py` accepts `--chapter-regex` / `--response-regex` (defaulting to the ASVS three-number form). `frameworks.json` gained `control_id_response_regex` per entry. This lets the coverage validator work for `SCE-MEM-1`, `MASVS-STORAGE-1`, and ASVS `1.2.1` IDs alike.
+- **`/securecoder-setup` Q9** — framework-fit threshold (default 15%, configurable) + baseline enable/disable. Q1 reframed: it picks *overlay* frameworks; the baseline is explained as automatic.
+- **15 new pytest cases** — `fit_check.py` (11) and the per-framework-regex paths in `validate_coverage.py` (4). Full suite: 98 passing.
+
+### Changed
+
+- `config.json` schema → `1.1`: adds `framework_fit.poor_fit_threshold_pct` and `baseline_enabled`. A `1.0` config with neither key is read as baseline-on / threshold-15 — upgrading installs get the baseline automatically, no re-run of `/securecoder-setup` required.
+- `frameworks.json` → schema `1.1`: every entry gains `layer`; overlays gain `target_languages` + `signal_globs`; all scannable entries gain `control_id_response_regex`.
+- `/securecoder-scan` Phase B gains B.0.5 (fit check) and a bundled-framework branch in B.1 (`source: "bundled"` → no clone).
+
+### Compatibility
+
+- Fully backwards-compatible. Existing `config.json` files keep working; the baseline simply starts running on the next compliance scan (a more thorough scan, documented as a beneficial behavior addition).
+- No new pinned upstreams. The essentials framework is bundled, not fetched — works offline.
+
+### Deferred to v1.4.0
+
+- **CERT C / C++ and domain-specific overlay frameworks.** Committed — needs a wiki-scraping ingestion path since CERT standards aren't clean `git clone` markdown targets. See `docs/roadmap.md`.
+
 ## [1.2.1] — 2026-05-17
 
 Bug fix. The `/securecoder-scan` SKILL.md carried stale slice-03-era narrative text that contradicted the implemented compliance pass.
@@ -377,7 +406,8 @@ The foundation release. Establishes the repo as a skills.sh-installable agent sk
 - OS: macOS, Linux. Windows path handling implemented but not yet validated end-to-end.
 - Python: 3.9+ for helper scripts (`/securecoder-setup` is pure SKILL.md and needs no Python).
 
-[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/nerdy-krishna/securecoder/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.3.0
 [1.2.1]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.2.1
 [1.2.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.2.0
 [1.1.0]: https://github.com/nerdy-krishna/securecoder/releases/tag/v1.1.0

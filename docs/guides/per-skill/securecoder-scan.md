@@ -2,7 +2,7 @@
 
 ## What this skill does
 
-Audits your codebase for security findings. Runs deterministic SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and/or LLM-driven compliance review against OWASP frameworks (ASVS v5, MASVS, Proactive Controls). Produces a unified `findings.jsonl`, a `manifest.json`, a markdown report, and a self-contained HTML report under `.securecoder/runs/<run-id>/`.
+Audits your codebase for security findings. Runs deterministic SAST tools (Semgrep, Bandit, Gitleaks, OSV-scanner) and/or LLM-driven compliance review. Compliance review always runs the bundled, language-agnostic `secure-coding-essentials` **baseline** framework, plus any **overlay** frameworks you've enabled (ASVS v5, MASVS, Proactive Controls). Produces a unified `findings.jsonl`, a `manifest.json`, a markdown report, and a self-contained HTML report under `.securecoder/runs/<run-id>/`.
 
 ## When to invoke it
 
@@ -22,7 +22,7 @@ The skill asks one question — the **mode picker**:
 | Mode | What it runs | Cost | Wall time |
 | --- | --- | --- | --- |
 | **SAST only** | Semgrep + Bandit + Gitleaks + OSV-scanner | $0 LLM | Seconds to minutes |
-| **LLM compliance only** | Architect-style prompt per file × ASVS chapter pair | Dollars to tens-of-dollars | Hours for large repos |
+| **LLM compliance only** | Architect-style prompt per file × chapter pair — baseline + overlays | Dollars to tens-of-dollars | Hours for large repos |
 | **Both** (Recommended for thorough audits) | SAST first, then compliance against the same code | Same as LLM compliance only | Same |
 
 Pick the right mode for your situation:
@@ -88,6 +88,21 @@ The `findings.jsonl` is the single source of truth. The reports are derivatives.
 ```
 
 Argument-form invocations are aspirational — current implementation always prompts via the mode picker. The agent can interpret natural-language form ("run securecoder-scan in SAST-only mode") and skip the prompt.
+
+## Baseline framework + framework fit (v1.3.0)
+
+Compliance scans run a **baseline-plus-overlay** model:
+
+- **Baseline — `secure-coding-essentials`.** Nine language-agnostic chapters (Memory Safety, Integer Handling, Input Validation, Injection Prevention, Error Handling, Resource Management, Concurrency, Cryptography & Secrets, Access Control). Bundled in the skill — no clone, works offline. Runs on *every* compliance scan unless you set `baseline_enabled: false` in `/securecoder-setup`. This is what gives non-web code (C, Rust, embedded) a real audit instead of a wall of ASVS N/A rows.
+- **Overlays — ASVS v5, MASVS, Proactive Controls.** Domain-specialized, web/mobile-shaped. Governed by `config.frameworks`. Opt-in.
+
+**Phase B.0.5 — fit check.** Before the cost estimate, the scan scores each enabled overlay: it profiles the repo's languages and computes what % of source files fall in the overlay's target languages. If an overlay is below the fit threshold (default 15%, set via `/securecoder-setup` Q9) and no signal file rescues it (e.g. no `package.json`), the scan warns and offers:
+
+- `recommended` — skip the poor-fit overlay this run (baseline still runs)
+- `as-configured` — run it anyway (expect mostly N/A rows)
+- `abort`
+
+Overlays you *haven't* enabled but that *would* fit the repo are surfaced as suggestions. The fit check costs zero LLM tokens.
 
 ## What v1.1.0+ adds to the scan flow
 

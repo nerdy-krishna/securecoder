@@ -2,7 +2,7 @@
 
 ## What this skill does
 
-Walks you through an 8-question wizard and writes `.securecoder/config.json` to your project root. Every other securecoder skill reads this file at runtime. If the file doesn't exist, those skills run with sensible defaults and remind you to invoke `/securecoder-setup`.
+Walks you through a 9-question wizard and writes `.securecoder/config.json` to your project root. Every other securecoder skill reads this file at runtime. If the file doesn't exist, those skills run with sensible defaults and remind you to invoke `/securecoder-setup`.
 
 ## When to invoke it
 
@@ -20,11 +20,11 @@ That's it — no arguments. The wizard runs unconditionally.
 
 Re-running on an existing config pre-selects your current values as defaults, so you can fast-skip through unchanged questions and only adjust what you came to change.
 
-## The 8 questions
+## The 9 questions
 
 | # | Question | Default | Notes |
 | - | --- | --- | --- |
-| 1 | Compliance frameworks (multi-select) | `["asvs-v5"]` | When you enable any framework, the skill displays a one-time privacy notice about LLM data egress. Acknowledge once. |
+| 1 | **Overlay** compliance frameworks (multi-select) | `["asvs-v5"]` | Picks domain overlays only. The `secure-coding-essentials` baseline always runs and is *not* in this list — see Q9. When you enable any framework, the skill displays a one-time privacy notice about LLM data egress. Acknowledge once. |
 | 2 | Severity floor | `low` | Findings below this level are recorded as `info` and never block. Useful for very noisy repos. |
 | 3 | Default fix scope for `/securecoder-secure` | `["critical", "high"]` | The easy-button pipeline uses this. `/securecoder-fix` asks each invocation regardless. |
 | 4 | Git push strategy | `commit-local-push-at-end` | Other options: `push-each` (push after every fix commit), `commit-local-never-push` (manual push). |
@@ -32,6 +32,7 @@ Re-running on an existing config pre-selects your current values as defaults, so
 | 6 | Customize rule source pins | use defaults | Advanced. Lets you pin specific tags for any rule source. |
 | 7 | Use system-installed tools | use cached | Advanced. Lets you point at a system `semgrep` instead of the cached one. |
 | 8 | Custom rule sources | none | Advanced. Adds Semgrep/etc. sources beyond the OWASP / returntocorp allowlist; one-time confirmation gate per source. |
+| 9 | Framework fit (v1.3.0) | threshold `15`%, baseline enabled | Two settings: the **poor-fit threshold** — an enabled overlay scoring below this % of repo files in its target languages triggers a fit warning at scan time; and **baseline enable/disable** — whether `secure-coding-essentials` runs on compliance scans (default on; disable only if you have a reason to). |
 
 ## What it produces
 
@@ -74,8 +75,10 @@ Output looks like:
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "frameworks": ["asvs-v5"],
+  "baseline_enabled": true,
+  "framework_fit": { "poor_fit_threshold_pct": 15 },
   "severity_floor": "low",
   "default_fix_scope": ["critical", "high"],
   "git": { "push_strategy": "commit-local-push-at-end" },
@@ -85,6 +88,8 @@ Output looks like:
   "custom_sources": []
 }
 ```
+
+`frameworks` lists **overlay** frameworks only. A `schema_version` `1.0` config (no `baseline_enabled` / `framework_fit` keys) is read as baseline-on with a 15% threshold — existing installs get the baseline automatically, no re-run required.
 
 ## See also
 
