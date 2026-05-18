@@ -38,6 +38,40 @@ Read `<PROJECT_ROOT>/.securecoder/config.json` if it exists and is parseable. Ot
 
 If the file is missing, mention once: "Running with default configuration. Run `/securecoder-setup` to customize."
 
+### 2.5 Resolve the scan-output gitignore strategy
+
+`/securecoder-scan` writes the full vulnerability picture of the codebase to `.securecoder/runs/`. That data is sensitive and usually shouldn't land on a shared remote. The `git.gitignore_strategy` field in `config.json` controls how the **project-root `.gitignore`** reflects that:
+
+- `runs-and-reviews` — root `.gitignore` ignores `.securecoder/runs/` + `.securecoder/reviews/`; `config.json` / `suppressions.json` stay team-shared and committed. **Recommended.**
+- `whole-folder` — root `.gitignore` ignores the entire `.securecoder/` directory.
+- `none` — securecoder leaves the root `.gitignore` alone.
+
+**Resolve the strategy:**
+
+1. If `config.git.gitignore_strategy` is set to one of the three values above, use it. Skip to step 3.
+2. If it's unset (no `config.json`, or the field is absent) **and** the project root is not a git repository, treat the strategy as `none` and skip to step 3 — there's no `.gitignore` worth managing.
+3. If it's unset and the project root *is* a git repository, prompt once:
+
+   ```
+   securecoder scan results (.securecoder/runs/) contain the full list of
+   vulnerabilities found in this codebase — sensitive data you usually don't
+   want pushed to a shared remote. How should the project-root .gitignore
+   handle securecoder's output?
+
+     [recommended]  runs-and-reviews — ignore .securecoder/runs/ and
+                    .securecoder/reviews/; keep config.json + suppressions.json
+                    team-shared and committed
+     whole-folder   ignore the entire .securecoder/ directory (also stops
+                    config.json + suppressions.json being shared; files already
+                    committed under .securecoder/ stay tracked until you
+                    git rm --cached them)
+     none           don't touch the root .gitignore
+   ```
+
+   Persist the answer so this prompt never repeats: merge `{"git": {"gitignore_strategy": "<answer>"}}` into `<PROJECT_ROOT>/.securecoder/config.json` — create the file from the step-2 default schema if it doesn't exist, otherwise preserve every existing field and only set `git.gitignore_strategy`.
+
+Capture the resolved value as `GITIGNORE_STRATEGY` for step A.12.b.
+
 ### 3. Ask which mode to run
 
 Show three options with token warnings. Use whatever interactive prompt mechanism the host agent supports.
@@ -596,7 +630,9 @@ else
 fi
 ```
 
-### A.12 Ensure `.securecoder/.gitignore`
+### A.12 Ensure gitignore protection
+
+**A.12.a — nested `.securecoder/.gitignore` (always-on backstop).** Written regardless of `GITIGNORE_STRATEGY`, so `runs/` and `reviews/` stay ignored even when no config exists.
 
 ```bash
 GITIGNORE="$PROJECT_ROOT/.securecoder/.gitignore"
@@ -608,6 +644,16 @@ reviews/
 EOF
 fi
 ```
+
+**A.12.b — reconcile the project-root `.gitignore`.** Apply `GITIGNORE_STRATEGY` (resolved in pre-flight 2.5) to the root `.gitignore`. This runs every scan; the script is idempotent — it maintains a single sentinel-fenced block, replaces it on a strategy change, and removes it for `none`. A non-git project is skipped automatically.
+
+```bash
+python3 "<skill-dir>/scripts/manage_gitignore.py" "$PROJECT_ROOT" \
+  --strategy "$GITIGNORE_STRATEGY" \
+  --output "$RUN_DIR/_gitignore.json"
+```
+
+If the result's `tracked_warning` is non-null (only possible under `whole-folder`), surface it to the user verbatim — files already tracked under `.securecoder/` keep being committed until they're `git rm --cached`-ed.
 
 ### A.13 Print the summary
 

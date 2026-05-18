@@ -1,11 +1,11 @@
 ---
 name: securecoder-setup
-description: One-time team configuration wizard for securecoder. Asks 9 questions and writes `.securecoder/config.json` to the project root — overlay frameworks, severity floor, default fix scope, git push strategy, language overrides, advanced source/tool pins, and framework-fit settings. Run once when a team adopts securecoder; re-run any time to change preferences.
+description: One-time team configuration wizard for securecoder. Asks 10 questions and writes `.securecoder/config.json` to the project root — overlay frameworks, severity floor, default fix scope, git push strategy, scan-output gitignore policy, language overrides, advanced source/tool pins, and framework-fit settings. Run once when a team adopts securecoder; re-run any time to change preferences.
 ---
 
 # `/securecoder-setup`
 
-You are running the `/securecoder-setup` skill. Your job is to walk the user through an 8-question wizard and write `.securecoder/config.json` to their repo root.
+You are running the `/securecoder-setup` skill. Your job is to walk the user through a 10-question wizard and write `.securecoder/config.json` to their repo root.
 
 `/securecoder-setup` is **convenient but not required.** Other securecoder skills (`/securecoder-scan`, `/securecoder-fix`, etc.) read this file when present and fall back to documented defaults when it's missing.
 
@@ -26,7 +26,7 @@ Read `<project-root>/.securecoder/config.json` if it exists.
 - If present but unparseable, copy it to `.securecoder/config.json.bak.<UTC-timestamp>`, note this in the closing summary, and use documented defaults instead.
 - If absent, use the inline documented defaults.
 
-### 3. Detect primary languages (for question 5's default)
+### 3. Detect primary languages (for question 6's default)
 
 Walk the project root to a depth of 3 directories. Skip these directories: `.git`, `node_modules`, `dist`, `build`, `__pycache__`, `.venv`, `venv`, `.tox`, `target`, `out`, `vendor`.
 
@@ -118,7 +118,21 @@ Single-select:
 
 Default: `commit-local-push-at-end`.
 
-### Q5 — Primary languages
+### Q5 — Scan-output gitignore policy
+
+> `/securecoder-scan` writes the full list of discovered vulnerabilities to `.securecoder/runs/` (and `/securecoder-review` to `.securecoder/reviews/`). That's sensitive data — usually you don't want it pushed to a shared remote. How should the project-root `.gitignore` treat securecoder's output?
+
+Single-select:
+
+- `runs-and-reviews` — Recommended; default. Root `.gitignore` ignores `.securecoder/runs/` and `.securecoder/reviews/`. `config.json` and `suppressions.json` stay tracked and team-shared.
+- `whole-folder` — root `.gitignore` ignores the entire `.securecoder/` directory. This *also* stops `config.json` and `suppressions.json` being shared. Files already committed under `.securecoder/` keep being tracked until you `git rm --cached` them — `/securecoder-scan` warns when it detects this.
+- `none` — securecoder never touches the root `.gitignore`.
+
+> securecoder always writes a nested `.securecoder/.gitignore` (ignoring `runs/` and `reviews/`) as a backstop regardless of this choice. This setting controls the *root* `.gitignore` — visible where developers actually look. `/securecoder-setup` only records the preference; `/securecoder-scan` applies it to the root `.gitignore` on its next run.
+
+Default: `runs-and-reviews`.
+
+### Q6 — Primary languages
 
 > Auto-detected primary languages for this project: `<comma-separated list from pre-flight>`. Accept or override?
 
@@ -129,7 +143,7 @@ Options:
 
 Default: accept detected.
 
-### Q6 — Customize rule source pins (advanced)
+### Q7 — Customize rule source pins (advanced)
 
 > securecoder pins specific tags of upstream rule repositories so scans are reproducible. Override any pins for this project?
 
@@ -140,7 +154,7 @@ Single-select:
 
 Default: use defaults. The resulting `rule_pins` field is an empty object when defaults are used.
 
-### Q7 — Use system-installed tools instead of cached?
+### Q8 — Use system-installed tools instead of cached?
 
 > By default securecoder installs Semgrep, Bandit, Gitleaks, and OSV-scanner into `~/.cache/securecoder/tools/` for reproducibility. Override any with system-installed versions?
 
@@ -151,7 +165,7 @@ Single-select:
 
 Default: use cached. The resulting `tools` field is an empty object when cached versions are used.
 
-### Q8 — Custom rule sources beyond the OWASP / returntocorp allowlist
+### Q9 — Custom rule sources beyond the OWASP / returntocorp allowlist
 
 > By default securecoder only fetches rules from official OWASP repos and Semgrep's official rules repo. Want to add custom sources?
 
@@ -176,7 +190,7 @@ Default: none.
 >
 > Confirm by replying "ok" or "continue".
 
-### Q9 — Framework fit (advanced)
+### Q10 — Framework fit (advanced)
 
 > When `/securecoder-scan` runs an overlay framework against code it doesn't fit (ASVS over C kernel code, etc.), a pre-flight fit-check warns you. An overlay is flagged poor-fit when fewer than this percentage of the repo's files are in the framework's target languages.
 
@@ -196,7 +210,7 @@ Defaults: threshold 15, baseline enabled.
 
 ## Write the config
 
-After all 9 questions are answered, write `<project-root>/.securecoder/config.json` with this exact schema. Use 2-space indentation. End with a trailing newline.
+After all 10 questions are answered, write `<project-root>/.securecoder/config.json` with this exact schema. Use 2-space indentation. End with a trailing newline.
 
 ```json
 {
@@ -205,16 +219,17 @@ After all 9 questions are answered, write `<project-root>/.securecoder/config.js
   "severity_floor": "<from Q2>",
   "default_fix_scope": [<list from Q3>],
   "git": {
-    "push_strategy": "<from Q4>"
+    "push_strategy": "<from Q4>",
+    "gitignore_strategy": "<from Q5>"
   },
-  "languages": [<list from Q5>],
-  "rule_pins": <object from Q6, {} if defaults>,
-  "tools": <object from Q7, {} if cached>,
-  "custom_sources": [<list from Q8, [] if none>],
+  "languages": [<list from Q6>],
+  "rule_pins": <object from Q7, {} if defaults>,
+  "tools": <object from Q8, {} if cached>,
+  "custom_sources": [<list from Q9, [] if none>],
   "framework_fit": {
-    "poor_fit_threshold_pct": <int from Q9, default 15>
+    "poor_fit_threshold_pct": <int from Q10, default 15>
   },
-  "baseline_enabled": <bool from Q9, default true>
+  "baseline_enabled": <bool from Q10, default true>
 }
 ```
 
@@ -227,6 +242,7 @@ After all 9 questions are answered, write `<project-root>/.securecoder/config.js
 - `severity_floor` valid values: `critical`, `high`, `medium`, `low`, `info`.
 - `default_fix_scope` is a subset of the severity tokens.
 - `git.push_strategy` is one of `push-each`, `commit-local-push-at-end`, `commit-local-never-push`.
+- `git.gitignore_strategy` is one of `runs-and-reviews`, `whole-folder`, `none`. It controls how `/securecoder-scan` reconciles the project-root `.gitignore` with its scan output. A `config.json` written before v1.3.1 has no such key — `/securecoder-scan` reads that as unset, prompts once on its next run, and persists the answer back here. `/securecoder-setup` itself only records the value; it never edits the root `.gitignore`.
 - `languages` is a list of language tokens from the pre-flight language map, or `["other"]`.
 - `rule_pins` shape: `{"<source>": "<tag-or-sha>"}`. Empty `{}` when defaults are used.
 - `tools` shape: `{"<tool>": {"path": "<abs-path>"}}`. Empty `{}` when cached versions are used.
@@ -241,6 +257,8 @@ reviews/
 ```
 
 `config.json` itself is NOT gitignored — it is intentionally team-shared.
+
+This nested `.securecoder/.gitignore` is the always-on backstop. The **project-root `.gitignore`** is a separate, visible layer governed by `git.gitignore_strategy` (Q5) — `/securecoder-setup` does **not** edit it; `/securecoder-scan` reconciles it on its next run.
 
 ### Re-runs
 
@@ -261,6 +279,7 @@ Securecoder configured.
   Severity floor:     <value>
   Default fix scope:  <comma-separated list>
   Push strategy:      <value>
+  Scan-output ignore: <value>   (applied to the root .gitignore on next scan)
   Languages:          <comma-separated list>
 
 Next steps:

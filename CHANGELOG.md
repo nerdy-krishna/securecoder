@@ -4,6 +4,28 @@ All notable changes to securecoder ship here. Format roughly follows [Keep a Cha
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-05-18
+
+Scan output is sensitive — `.securecoder/runs/` holds the full vulnerability picture of the codebase. securecoder already wrote a nested `.securecoder/.gitignore` as a backstop, but it was silent and unconfigurable, and `.securecoder/` still surfaced in git via the deliberately team-shared `config.json` / `suppressions.json`. v1.3.1 adds a visible, opt-in project-root `.gitignore` integration on top of that backstop.
+
+### Added
+
+- **`git.gitignore_strategy` config field.** `runs-and-reviews` (default — ignore `.securecoder/runs/` + `.securecoder/reviews/`, keep `config.json` / `suppressions.json` team-shared), `whole-folder` (ignore all of `.securecoder/`), or `none` (leave the root `.gitignore` untouched).
+- **`/securecoder-setup` Q5 — scan-output gitignore policy.** New wizard question; the former Q5–Q9 (languages, rule pins, tools, custom sources, framework fit) shift to Q6–Q10. Records the strategy, pre-selects `runs-and-reviews`. Setup records the preference only — it never edits the root `.gitignore`.
+- **`/securecoder-scan` root-`.gitignore` reconcile.** Pre-flight step 2.5 resolves the strategy from config; if it's unset and the project is a git repo, the scan prompts once and persists the answer to `config.json`. Step A.12 (renamed "Ensure gitignore protection") now reconciles a sentinel-fenced `# >>> securecoder >>>` block in the project-root `.gitignore` on every run — idempotent, replaced on a strategy change, removed for `none`.
+- **`manage_gitignore.py`** — new stdlib-only scan script that maintains the fenced block. Under `whole-folder` it detects files already tracked under `.securecoder/` and warns that they keep being committed until `git rm --cached`-ed; it performs no automatic git mutation. Non-git projects are skipped.
+- **14 new pytest cases** for `manage_gitignore.py` — block create / append / replace / remove, idempotency, no-trailing-newline handling, non-git skip, and tracked-file detection. Full suite: 112 passing.
+
+### Changed
+
+- `/securecoder-scan` step A.12 renamed "Ensure gitignore protection". The always-on nested `.securecoder/.gitignore` backstop (A.12.a) is unchanged; the root reconcile (A.12.b) is new.
+- `README.md`'s "never modifies anything outside `.securecoder/`" note now records the one narrow exception — the project-root `.gitignore` block — and how to opt out (`gitignore_strategy: none`).
+
+### Compatibility
+
+- Fully backwards-compatible. The `config.json` schema stays at `1.1` — `git.gitignore_strategy` is an optional field; a config written before v1.3.1 is read as unset, and `/securecoder-scan` prompts once on its next run, then persists the answer.
+- The nested `.securecoder/.gitignore` backstop is unchanged, so `runs/` / `reviews/` stay ignored regardless of the new strategy — including `none`.
+
 ## [1.3.0] — 2026-05-17
 
 Framework fit. ASVS / MASVS / Proactive Controls are all web/mobile-shaped — scanning non-web code (C kernel routines, embedded, Rust, Go) produced mostly N/A coverage and burned tokens. v1.3.0 adds a universal baseline framework that always runs, and fit-detection that warns when an overlay framework doesn't fit the repo. Full design: `docs/design.md` §3.10.

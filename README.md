@@ -164,9 +164,10 @@ Full scenario walkthroughs: [`docs/guides/scenarios.md`](docs/guides/scenarios.m
 
 ```
 <your project>/
+├── .gitignore            securecoder-managed block keeps scan output out of git
 └── .securecoder/
     ├── config.json        team-shared (checked in)
-    ├── .gitignore         (auto-generated)
+    ├── .gitignore         (auto-generated backstop)
     ├── runs/<id>/         scan / fix runs (gitignored)
     └── reviews/<id>/      diff-scoped reviews (gitignored)
 
@@ -184,7 +185,7 @@ Full scenario walkthroughs: [`docs/guides/scenarios.md`](docs/guides/scenarios.m
         └── proactive-controls/<sha>/
 ```
 
-The skill **never modifies anything outside `<your project>/.securecoder/` and `<your home cache>/securecoder/`** unless you explicitly run `/securecoder-fix` (or `/securecoder-secure`) which writes to your source files. Even then, every modified file is backed up first.
+The skill **never modifies anything outside `<your project>/.securecoder/` and `<your home cache>/securecoder/`** — with one narrow exception: `/securecoder-scan` maintains a sentinel-fenced block in your project-root `.gitignore` so scan output (the full list of discovered vulnerabilities) stays out of commits. It's configurable via `git.gitignore_strategy` in `config.json`; set it to `none` to opt out. Your source files are modified only when you explicitly run `/securecoder-fix` (or `/securecoder-secure`) — and even then, every modified file is backed up first.
 
 ## Privacy
 

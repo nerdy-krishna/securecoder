@@ -96,7 +96,7 @@ Compliance scans run a **baseline-plus-overlay** model:
 - **Baseline — `secure-coding-essentials`.** Nine language-agnostic chapters (Memory Safety, Integer Handling, Input Validation, Injection Prevention, Error Handling, Resource Management, Concurrency, Cryptography & Secrets, Access Control). Bundled in the skill — no clone, works offline. Runs on *every* compliance scan unless you set `baseline_enabled: false` in `/securecoder-setup`. This is what gives non-web code (C, Rust, embedded) a real audit instead of a wall of ASVS N/A rows.
 - **Overlays — ASVS v5, MASVS, Proactive Controls.** Domain-specialized, web/mobile-shaped. Governed by `config.frameworks`. Opt-in.
 
-**Phase B.0.5 — fit check.** Before the cost estimate, the scan scores each enabled overlay: it profiles the repo's languages and computes what % of source files fall in the overlay's target languages. If an overlay is below the fit threshold (default 15%, set via `/securecoder-setup` Q9) and no signal file rescues it (e.g. no `package.json`), the scan warns and offers:
+**Phase B.0.5 — fit check.** Before the cost estimate, the scan scores each enabled overlay: it profiles the repo's languages and computes what % of source files fall in the overlay's target languages. If an overlay is below the fit threshold (default 15%, set via `/securecoder-setup` Q10) and no signal file rescues it (e.g. no `package.json`), the scan warns and offers:
 
 - `recommended` — skip the poor-fit overlay this run (baseline still runs)
 - `as-configured` — run it anyway (expect mostly N/A rows)
@@ -112,6 +112,15 @@ Two phases the original SAST flow didn't have:
 - **Phase A.7.5 (v1.1.0) — apply suppressions.** Reads `.securecoder/suppressions.json` plus the ephemeral annotation entries from A.7.3 and stamps `status: "suppressed"` + `suppression_reason` + `suppression_match` on matching findings. Most-specific-wins resolution per `docs/design.md` §3.9.
 
 You don't invoke these steps manually — they run automatically as part of every `/securecoder-scan` invocation. If `.securecoder/suppressions.json` is missing and there are no in-source annotations, both phases are no-ops.
+
+## Keeping scan output out of git (v1.3.1)
+
+`.securecoder/runs/` holds the full list of vulnerabilities found in your codebase — sensitive data you usually don't want pushed to a shared remote. Two layers protect it:
+
+- A nested `.securecoder/.gitignore` (ignoring `runs/` and `reviews/`) is always written — the unconditional backstop.
+- The **project-root `.gitignore`** carries a sentinel-fenced `# >>> securecoder >>>` block, reconciled on every scan per `git.gitignore_strategy` in `config.json`.
+
+The first time `/securecoder-scan` runs in a git repo without that setting, it asks how to handle the root `.gitignore` — `runs-and-reviews` (recommended; ignores `.securecoder/runs/` + `.securecoder/reviews/`, keeps `config.json` / `suppressions.json` shared), `whole-folder` (ignores all of `.securecoder/`), or `none` — and persists your answer to `config.json` so it never asks again. You can also set it up front via `/securecoder-setup` Q5. Under `whole-folder`, files already committed under `.securecoder/` keep being tracked until you `git rm --cached` them — the scan warns you when it detects this.
 
 ## Reading the report
 

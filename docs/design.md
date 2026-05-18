@@ -53,30 +53,39 @@ One-time configuration. Subsequent skills run with defaults if `.securecoder/con
 
 | # | Question | Options | Default |
 |---|---|---|---|
-| 1 | Compliance frameworks (multi-select) | ASVS v5 / MASVS / Proactive Controls / Cheatsheets / None | ASVS v5 only |
+| 1 | Compliance overlay frameworks (multi-select) | ASVS v5 / MASVS / Proactive Controls / Cheatsheets / None | ASVS v5 only |
 | 2 | Severity floor (findings below this are recorded as info, never block) | critical / high / medium / low / info | low |
 | 3 | Default fix scope for `/securecoder-secure` | critical only / critical+high / critical+high+medium / all | critical+high |
 | 4 | Git push strategy after each fix | push each / commit local push at end / commit local never push | commit local push at end |
-| 5 | Auto-detected primary languages — override? | accept / provide list | accept |
-| 6 | Customize rule source pins (advanced) | use defaults / override per source | use defaults |
-| 7 | Use system-installed tools instead of cached? | use cached / override per tool | use cached |
-| 8 | Custom rule sources beyond allowlist (advanced; warns on supply chain) | none / add sources | none |
+| 5 | Scan-output gitignore policy for the project-root `.gitignore` | runs-and-reviews / whole-folder / none | runs-and-reviews |
+| 6 | Auto-detected primary languages — override? | accept / provide list | accept |
+| 7 | Customize rule source pins (advanced) | use defaults / override per source | use defaults |
+| 8 | Use system-installed tools instead of cached? | use cached / override per tool | use cached |
+| 9 | Custom rule sources beyond allowlist (advanced; warns on supply chain) | none / add sources | none |
+| 10 | Framework fit threshold + baseline enable (advanced) | default 15% / custom; baseline on / off | 15%, baseline on |
 
-**Output (`.securecoder/config.json` v1.0 schema):**
+**Output (`.securecoder/config.json` v1.1 schema):**
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "frameworks": ["asvs-v5"],
   "severity_floor": "low",
   "default_fix_scope": ["critical", "high"],
-  "git": { "push_strategy": "commit-local-push-at-end" },
+  "git": {
+    "push_strategy": "commit-local-push-at-end",
+    "gitignore_strategy": "runs-and-reviews"
+  },
   "languages": ["python", "typescript"],
   "rule_pins": {},
   "tools": {},
-  "custom_sources": []
+  "custom_sources": [],
+  "framework_fit": { "poor_fit_threshold_pct": 15 },
+  "baseline_enabled": true
 }
 ```
+
+`git.gitignore_strategy` (added v1.3.1) governs how `/securecoder-scan` reconciles the **project-root `.gitignore`** with its scan output. `runs-and-reviews` ignores `.securecoder/runs/` + `.securecoder/reviews/` (keeping `config.json` / `suppressions.json` team-shared); `whole-folder` ignores all of `.securecoder/`; `none` leaves the root `.gitignore` untouched. `/securecoder-setup` records the value only — `/securecoder-scan` applies it (see §3.2). A config without the key is read as unset: `/securecoder-scan` prompts once and persists the answer.
 
 **Refresh actions surfaced separately**, not in the wizard: `/securecoder-setup --refresh-rules`, `--refresh-tools`. Re-running the wizard loads existing config as pre-selected defaults.
 
@@ -121,6 +130,8 @@ Scan-only — produces findings, never modifies code.
 - `report.md` and `report.html` — rendered reports (§9)
 - `log.md` — per-phase progress (asvs-shell-style runlog)
 - A `latest` symlink (or `latest.json` on Windows) at `.securecoder/runs/latest` points to this run.
+
+**gitignore reconcile.** Pre-flight resolves `git.gitignore_strategy` from config; when it's unset and the project is a git repo, `/securecoder-scan` prompts once and persists the choice. On every run it (a) writes the nested `.securecoder/.gitignore` backstop, and (b) reconciles a sentinel-fenced block in the **project-root `.gitignore`** to match the strategy — idempotent, replaced on a strategy change, removed for `none`. This is the only file securecoder maintains outside `.securecoder/`. See §5.
 
 ### 3.3 `/securecoder-fix`
 
@@ -542,9 +553,12 @@ Split between **in-repo project state** (team-shared and per-run history) and **
 
 ```
 <user-project>/
+├── .gitignore                   # securecoder maintains a sentinel-fenced block
+│                                #   here per git.gitignore_strategy (see below)
 └── .securecoder/
     ├── config.json              # from /securecoder-setup. CHECKED IN.
-    ├── .gitignore               # ignores runs/ and reviews/, keeps config.json
+    ├── .gitignore               # nested backstop: ignores runs/ and reviews/,
+    │                            #   keeps config.json. Always written.
     ├── runs/
     │   ├── 20260513T140000Z/
     │   │   ├── findings.jsonl
@@ -561,7 +575,12 @@ Split between **in-repo project state** (team-shared and per-run history) and **
             └── log.md
 ```
 
-`.securecoder/config.json` is intentionally checked in — teams share the same framework choices and severity floor. `runs/` and `reviews/` are gitignored: large, per-developer, transient.
+`.securecoder/config.json` is intentionally checked in — teams share the same framework choices and severity floor. `runs/` and `reviews/` are gitignored: large, per-developer, transient — and *sensitive*, since they hold the full vulnerability picture of the codebase.
+
+Two `.gitignore` layers enforce that:
+
+1. **Nested `.securecoder/.gitignore`** — always written by `/securecoder-scan` (step A.12.a). Ignores `runs/` and `reviews/`, never `config.json`. The unconditional backstop.
+2. **Project-root `.gitignore`** — a sentinel-fenced (`# >>> securecoder >>>` … `# <<< securecoder <<<`) block, reconciled by `/securecoder-scan` (step A.12.b) per `git.gitignore_strategy`: `runs-and-reviews` ignores `.securecoder/runs/` + `.securecoder/reviews/`; `whole-folder` ignores all of `.securecoder/`; `none` removes the block. The visible layer, where developers actually look. Under `whole-folder`, files already tracked under `.securecoder/` keep being committed until `git rm --cached`-ed — the scan warns about this rather than mutating the index.
 
 ### In the user's home
 

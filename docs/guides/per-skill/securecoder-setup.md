@@ -2,7 +2,7 @@
 
 ## What this skill does
 
-Walks you through a 9-question wizard and writes `.securecoder/config.json` to your project root. Every other securecoder skill reads this file at runtime. If the file doesn't exist, those skills run with sensible defaults and remind you to invoke `/securecoder-setup`.
+Walks you through a 10-question wizard and writes `.securecoder/config.json` to your project root. Every other securecoder skill reads this file at runtime. If the file doesn't exist, those skills run with sensible defaults and remind you to invoke `/securecoder-setup`.
 
 ## When to invoke it
 
@@ -20,19 +20,20 @@ That's it — no arguments. The wizard runs unconditionally.
 
 Re-running on an existing config pre-selects your current values as defaults, so you can fast-skip through unchanged questions and only adjust what you came to change.
 
-## The 9 questions
+## The 10 questions
 
 | # | Question | Default | Notes |
 | - | --- | --- | --- |
-| 1 | **Overlay** compliance frameworks (multi-select) | `["asvs-v5"]` | Picks domain overlays only. The `secure-coding-essentials` baseline always runs and is *not* in this list — see Q9. When you enable any framework, the skill displays a one-time privacy notice about LLM data egress. Acknowledge once. |
+| 1 | **Overlay** compliance frameworks (multi-select) | `["asvs-v5"]` | Picks domain overlays only. The `secure-coding-essentials` baseline always runs and is *not* in this list — see Q10. When you enable any framework, the skill displays a one-time privacy notice about LLM data egress. Acknowledge once. |
 | 2 | Severity floor | `low` | Findings below this level are recorded as `info` and never block. Useful for very noisy repos. |
 | 3 | Default fix scope for `/securecoder-secure` | `["critical", "high"]` | The easy-button pipeline uses this. `/securecoder-fix` asks each invocation regardless. |
 | 4 | Git push strategy | `commit-local-push-at-end` | Other options: `push-each` (push after every fix commit), `commit-local-never-push` (manual push). |
-| 5 | Primary languages | auto-detected | Accept or override. Used for SAST rule pack selection. |
-| 6 | Customize rule source pins | use defaults | Advanced. Lets you pin specific tags for any rule source. |
-| 7 | Use system-installed tools | use cached | Advanced. Lets you point at a system `semgrep` instead of the cached one. |
-| 8 | Custom rule sources | none | Advanced. Adds Semgrep/etc. sources beyond the OWASP / returntocorp allowlist; one-time confirmation gate per source. |
-| 9 | Framework fit (v1.3.0) | threshold `15`%, baseline enabled | Two settings: the **poor-fit threshold** — an enabled overlay scoring below this % of repo files in its target languages triggers a fit warning at scan time; and **baseline enable/disable** — whether `secure-coding-essentials` runs on compliance scans (default on; disable only if you have a reason to). |
+| 5 | Scan-output gitignore policy (v1.3.1) | `runs-and-reviews` | Controls the **project-root** `.gitignore`. `runs-and-reviews` ignores `.securecoder/runs/` + `.securecoder/reviews/` and keeps `config.json` / `suppressions.json` shared; `whole-folder` ignores all of `.securecoder/`; `none` leaves it alone. Setup only records this — `/securecoder-scan` applies it. |
+| 6 | Primary languages | auto-detected | Accept or override. Used for SAST rule pack selection. |
+| 7 | Customize rule source pins | use defaults | Advanced. Lets you pin specific tags for any rule source. |
+| 8 | Use system-installed tools | use cached | Advanced. Lets you point at a system `semgrep` instead of the cached one. |
+| 9 | Custom rule sources | none | Advanced. Adds Semgrep/etc. sources beyond the OWASP / returntocorp allowlist; one-time confirmation gate per source. |
+| 10 | Framework fit (v1.3.0) | threshold `15`%, baseline enabled | Two settings: the **poor-fit threshold** — an enabled overlay scoring below this % of repo files in its target languages triggers a fit warning at scan time; and **baseline enable/disable** — whether `secure-coding-essentials` runs on compliance scans (default on; disable only if you have a reason to). |
 
 ## What it produces
 
@@ -61,7 +62,7 @@ or
 ## Common pitfalls
 
 - **Re-running drops un-recognized fields.** If a future schema version adds fields and you re-run an older skill, those new fields get dropped. Always re-run setup with the latest skill version.
-- **`config.json` is intentionally checked in.** Your `.gitignore` shouldn't ignore it. The auto-generated `.securecoder/.gitignore` correctly excludes only the per-developer state (`runs/`, `reviews/`).
+- **`config.json` is intentionally checked in.** Your `.gitignore` shouldn't ignore it. The auto-generated `.securecoder/.gitignore` correctly excludes only the per-developer state (`runs/`, `reviews/`). If you pick the `whole-folder` gitignore policy (Q5), `config.json` stops being shared — `runs-and-reviews` (the default) keeps it shared.
 - **The privacy notice only fires when you ENABLE a framework.** If you re-run setup and leave frameworks unchanged, you won't see it again.
 - **The wizard does not install tools.** Tools install on the first `/securecoder-scan` invocation (with a one-time consent gate of their own).
 

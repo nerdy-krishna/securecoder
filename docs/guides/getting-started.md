@@ -38,16 +38,18 @@ Open your coding agent inside the project you want to audit. Run:
 /securecoder-setup
 ```
 
-The skill walks you through 8 questions one at a time, with sensible defaults pre-selected:
+The skill walks you through 10 questions one at a time, with sensible defaults pre-selected:
 
 1. **Frameworks** — which compliance frameworks should the scan check against? Default: ASVS v5 (web app coverage). Add MASVS for mobile, Proactive Controls for defensive design.
 2. **Severity floor** — findings below this level are informational, not blocking. Default: low (show everything).
 3. **Default fix scope** — which severities should `/securecoder-secure` auto-fix? Default: critical + high.
 4. **Git push strategy** — `push-each` / `commit-local-push-at-end` / `commit-local-never-push`. Default: commit local, push at end of run.
-5. **Languages** — auto-detected from your repo. Confirm or override.
-6. **Rule pins** — advanced, accept defaults unless you have a reason.
-7. **System-installed tools** — advanced, accept defaults (the skill uses its own cached tools).
-8. **Custom rule sources** — advanced, leave as none unless you're adding your own Semgrep rules.
+5. **Scan-output gitignore policy** — how the project-root `.gitignore` treats scan output. Default: `runs-and-reviews` (ignore `.securecoder/runs/` + `.securecoder/reviews/`, keep `config.json` shared).
+6. **Languages** — auto-detected from your repo. Confirm or override.
+7. **Rule pins** — advanced, accept defaults unless you have a reason.
+8. **System-installed tools** — advanced, accept defaults (the skill uses its own cached tools).
+9. **Custom rule sources** — advanced, leave as none unless you're adding your own Semgrep rules.
+10. **Framework fit** — advanced; the poor-fit warning threshold (default 15%) and whether the `secure-coding-essentials` baseline runs (default on).
 
 When you select a compliance framework for the first time, the skill shows a one-time privacy notice:
 

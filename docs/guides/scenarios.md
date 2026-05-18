@@ -224,7 +224,7 @@ If you need partial rollback (some fixes good, one bad), use the per-file mode a
 **Sequence:**
 
 ```
-1.  /securecoder-setup            (Q8: add custom rule sources)
+1.  /securecoder-setup            (Q9: add custom rule sources)
 2.  Provide source name + git URL + pinned tag
 3.  /securecoder-scan             (uses the custom source on next scan)
 ```
@@ -383,7 +383,7 @@ The `latest` symlink under `.securecoder/runs/` always points at the most recent
 
 - **Step 2 — fit check (B.0.5).** Before the cost estimate, `fit_check.py` scores each *overlay* framework you have enabled. It builds a language profile of the repo and computes what % of source files fall in the overlay's `target_languages`. ASVS targets web languages; a 100%-C repo scores ~0% fit.
 
-- **Step 3 — the warning.** If an enabled overlay is below the fit threshold (default 15%, set in `/securecoder-setup` Q9) and no `signal_glob` rescues it (e.g. no `package.json`), the scan warns:
+- **Step 3 — the warning.** If an enabled overlay is below the fit threshold (default 15%, set in `/securecoder-setup` Q10) and no `signal_glob` rescues it (e.g. no `package.json`), the scan warns:
 
   ```
   Framework fit warning
