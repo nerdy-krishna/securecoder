@@ -56,4 +56,4 @@ Q&A / learning:
 
 - [Top-level README](../../README.md) for install + quickstart
 - [CHANGELOG](../../CHANGELOG.md) for release-by-release history
-- [docs/issues/](../issues/) for the 14 implementation slices (PRD-derived)
+- [docs/issues/](../issues/) for open implementation issues (shipped slices retired; see the CHANGELOG for history)

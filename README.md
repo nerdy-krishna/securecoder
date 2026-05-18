@@ -210,7 +210,7 @@ The two projects share design intent but have **no runtime dependency on each ot
 
 - [`docs/design.md`](docs/design.md) — every architectural decision, schema, and protocol
 - [`docs/prd.md`](docs/prd.md) — user-story-driven requirements
-- [`docs/issues/`](docs/issues/) — 14 implementation slices, dependency-ordered
+- [`docs/issues/`](docs/issues/) — open implementation issues (shipped slices retired; see the CHANGELOG for history)
 - [`docs/guides/`](docs/guides/) — usage walkthroughs and per-skill deep dives
 - [`docs/roadmap.md`](docs/roadmap.md) — what's planned for v1.4.0 and beyond
 - [`CHANGELOG.md`](CHANGELOG.md) — full release history from v0.1.0 onwards
@@ -219,7 +219,7 @@ Contributions welcome. The simplest path:
 
 1. Pick a slice from `docs/issues/` that lists outstanding test work, or open a discussion for a new feature.
 2. Open a PR with the implementation + tests if applicable.
-3. The two HITL-tagged slices (07 ASVS prompt, 11 build-mode policy) need maintainer review of their literal text since it directly shapes agent behavior.
+3. Any work touching agent-facing literal text (compliance prompts, build-mode policy) needs maintainer review since it directly shapes agent behavior.
 
 ## License
 
