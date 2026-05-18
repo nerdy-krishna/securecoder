@@ -2,26 +2,7 @@
 
 Forward-looking work. The CHANGELOG is the history of what shipped; this file is the queue of what's planned. Items here are deliberate deferrals — features considered but intentionally not in the current release.
 
-Shipped releases (v0.1.0 → v1.2.1) are recorded in the [CHANGELOG](../CHANGELOG.md), not here.
-
-## v1.3.0 — in progress
-
-Framework fit + the universal baseline. ASVS / MASVS / Proactive Controls are all web/mobile-shaped; non-web code (C kernel routines, embedded, Rust, Go CLIs, ML pipelines) gets mostly N/A coverage and burns tokens. v1.3.0 closes the gap. Full design: [`docs/design.md` § 3.10](design.md).
-
-### Planned features
-
-1. **`secure-coding-essentials` — a universal baseline framework.**
-   Bundled in the skill repo (not fetched). Nine `SCE-*` chapters: Memory Safety, Integer Handling, Input Validation, Injection, Error Handling, Resource Management, Concurrency, Cryptography & Secrets, Access Control. Runs on every compliance scan as the `baseline` layer; ASVS/MASVS become `overlay` layers on top.
-
-2. **Fit-detection.**
-   A pre-flight step that scores each overlay framework by language-profile overlap. When an overlay falls below the (configurable, default 15%) fit threshold, the scan warns before the cost estimate, names the better-fitting framework, and offers run-recommended / run-as-configured / abort.
-
-### Slice plan
-
-- **13.A** — essentials framework content + registry (9 chapters, relevance JSON, `frameworks.json` entry, per-framework `control_id_regex` in `validate_coverage.py`, bundled-framework branch in the Phase B.1 fetcher). HITL — chapter wording.
-- **13.B** — fit-detection (`fit_check.py`, `target_languages`/`layer`/`signal_globs` in `frameworks.json`, pre-flight warning step).
-- **13.C** — baseline wiring + `/securecoder-setup` (implicit always-on, `baseline_enabled` opt-out, fit-threshold question).
-- **13.D** — docs + tests + release.
+Shipped releases (v0.1.0 → v1.3.1) are recorded in the [CHANGELOG](../CHANGELOG.md), not here. Latest shipped: **v1.3.1** — project-root `.gitignore` integration for scan output.
 
 ## v1.4.0 — committed
 
@@ -53,7 +34,7 @@ Good ideas without a target release. Open for community PRs or future bandwidth.
 
 ## How items move between sections
 
-- **v1.3.0 items are in progress** — the current sprint.
+- **An `in progress` section** is added for the release currently being built — the current sprint. Once it ships, the section is removed and the release is recorded in the CHANGELOG.
 - **v1.4.0 items are committed** — a maintainer has agreed to build them; they have a target release.
 - **Later / unscheduled items are ideas** — they may move to a numbered release when a maintainer commits, or stay here indefinitely.
 - **Deletion happens** when an idea becomes obsolete or is actively rejected.
